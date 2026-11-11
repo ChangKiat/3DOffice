@@ -1,268 +1,286 @@
 import * as THREE from 'three';
+import { mat, box, cylinder, floorPatch } from './helpers.js';
+import {
+  createDesk,
+  createMonitor,
+  createChair,
+  createPlant,
+  createBookshelf,
+  createWindow,
+  createClock,
+  createSofa,
+  createFloorLabel,
+} from './furniture.js';
 
-const ROOM = 8; // floor is ROOM x ROOM, centred on the origin
+// Floor plan (seen from above, camera sits at the bottom right):
+//
+//   x = -8                0                 8
+//   z = -6 +--------------+-----------------+
+//          | Workstations |  Meeting room   |
+//   z =  0 +--------------+-----------------+
+//          | Pantry       |  Rest area      |
+//   z =  6 +--------------+-----------------+
+//
+// The back (z = -6) and left (x = -8) sides have walls; the other two are open.
+
+const WIDTH = 16;
+const DEPTH = 12;
 const WALL_HEIGHT = 3;
+const BACK = -DEPTH / 2;
+const LEFT = -WIDTH / 2;
 
-function mat(color, options = {}) {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...options });
+// Where each workstation's desk stands. The worker sits 0.8 in front (+z).
+export const DESK_POSITIONS = [
+  { x: -6.2, z: -4.6 },
+  { x: -4.0, z: -4.6 },
+  { x: -1.8, z: -4.6 },
+];
+
+function place(object, x, y, z, rotationY = 0) {
+  object.position.set(x, y, z);
+  object.rotation.y = rotationY;
+  return object;
 }
 
-function box(w, h, d, material, x = 0, y = 0, z = 0) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-  mesh.position.set(x, y, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+function label(text, x, z) {
+  const mesh = createFloorLabel(text);
+  mesh.position.set(x, 0.035, z);
   return mesh;
 }
 
-function cylinder(rTop, rBottom, h, material, x = 0, y = 0, z = 0, segments = 20) {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, h, segments), material);
-  mesh.position.set(x, y, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-function createRoom() {
+function createShell() {
   const group = new THREE.Group();
 
-  group.add(box(ROOM, 0.1, ROOM, mat(0xc9b79c), 0, -0.05, 0)); // floor
-  group.add(box(ROOM, WALL_HEIGHT, 0.1, mat(0xe9e4da), 0, WALL_HEIGHT / 2, -ROOM / 2)); // back wall
-  group.add(box(0.1, WALL_HEIGHT, ROOM, mat(0xdfd9cd), -ROOM / 2, WALL_HEIGHT / 2, 0)); // left wall
+  group.add(box(WIDTH, 0.1, DEPTH, mat(0xc9b79c), 0, -0.05, 0)); // floor
+  group.add(box(WIDTH, WALL_HEIGHT, 0.1, mat(0xe9e4da), 0, WALL_HEIGHT / 2, BACK)); // back wall
+  group.add(box(0.1, WALL_HEIGHT, DEPTH, mat(0xdfd9cd), LEFT, WALL_HEIGHT / 2, 0)); // left wall
 
-  // Skirting boards
   const skirting = mat(0x8c7a63);
-  group.add(box(ROOM, 0.12, 0.04, skirting, 0, 0.06, -ROOM / 2 + 0.07));
-  group.add(box(0.04, 0.12, ROOM, skirting, -ROOM / 2 + 0.07, 0.06, 0));
-
-  // Rug under the desk
-  const rug = box(3.4, 0.02, 2.6, mat(0x4f6d8f), 0, 0.01, -1.9);
-  rug.castShadow = false;
-  group.add(rug);
+  group.add(box(WIDTH, 0.12, 0.04, skirting, 0, 0.06, BACK + 0.07));
+  group.add(box(0.04, 0.12, DEPTH, skirting, LEFT + 0.07, 0.06, 0));
 
   return group;
 }
 
-function createWindow() {
+function createWorkstationArea(updaters) {
   const group = new THREE.Group();
-  const frame = mat(0xffffff);
-  const z = -ROOM / 2 + 0.06;
 
-  const glass = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.8, 1.2),
-    new THREE.MeshStandardMaterial({ color: 0x9fd4ff, emissive: 0x7fbfff, emissiveIntensity: 0.7 }),
-  );
-  glass.position.set(2.2, 1.75, z);
-  group.add(glass);
+  group.add(floorPatch(7.9, 5.9, 0x5b7594, -4, -3)); // carpet
 
-  group.add(box(1.9, 0.06, 0.06, frame, 2.2, 2.38, z));
-  group.add(box(1.9, 0.06, 0.06, frame, 2.2, 1.12, z));
-  group.add(box(0.06, 1.3, 0.06, frame, 1.28, 1.75, z));
-  group.add(box(0.06, 1.3, 0.06, frame, 3.12, 1.75, z));
-  group.add(box(0.04, 1.2, 0.04, frame, 2.2, 1.75, z));
-  group.add(box(1.8, 0.04, 0.04, frame, 2.2, 1.75, z));
+  for (const { x, z } of DESK_POSITIONS) {
+    group.add(place(createDesk(), x, 0, z));
+    group.add(place(createChair(), x, 0, z + 0.8));
+    const monitor = createMonitor();
+    group.add(place(monitor.group, x, 0, z));
+    updaters.push(monitor.update);
+  }
+
+  group.add(place(createWindow(), -6.2, 2.05, BACK + 0.06));
+  group.add(place(createWindow(), -1.8, 2.05, BACK + 0.06));
+
+  const clock = createClock();
+  group.add(place(clock.group, -4, 2.3, BACK + 0.07));
+  updaters.push(clock.update);
+
+  group.add(place(createBookshelf(), LEFT + 0.25, 0, -2.2));
+  group.add(place(createPlant(), -7.3, 0, -5.3));
+  group.add(label('Workstations', -4, -1.5));
 
   return group;
 }
 
-function createDesk() {
+function createMeetingRoom() {
   const group = new THREE.Group();
-  const wood = mat(0xa9774a);
-  const metal = mat(0x3a3f47, { roughness: 0.5, metalness: 0.6 });
 
-  group.add(box(1.8, 0.06, 0.9, wood, 0, 0.72, -2.4)); // top surface at y = 0.75
-  for (const x of [-0.82, 0.82]) {
-    for (const z of [-2.78, -2.02]) {
-      group.add(box(0.06, 0.69, 0.06, metal, x, 0.345, z));
-    }
-  }
+  group.add(floorPatch(7.9, 5.9, 0xb08d62, 4, -3)); // wooden floor
 
-  // Drawer unit
-  group.add(box(0.42, 0.55, 0.6, mat(0x8e6238), 0.62, 0.4, -2.45));
-  group.add(box(0.2, 0.02, 0.02, metal, 0.62, 0.55, -2.14));
-  group.add(box(0.2, 0.02, 0.02, metal, 0.62, 0.3, -2.14));
-
-  // Keyboard and mouse
-  group.add(box(0.46, 0.02, 0.15, mat(0x23262b), 0, 0.76, -2.12));
-  group.add(box(0.06, 0.025, 0.1, mat(0x23262b), 0.38, 0.763, -2.12));
-
-  // Coffee mug
-  group.add(cylinder(0.04, 0.035, 0.09, mat(0xd9523f), -0.55, 0.795, -2.2));
-
-  // Stack of paper
-  group.add(box(0.24, 0.03, 0.32, mat(0xf7f5ef), -0.6, 0.765, -2.55));
-
-  return group;
-}
-
-// Monitor whose screen shows scrolling lines of "code".
-function createMonitor() {
-  const group = new THREE.Group();
-  const dark = mat(0x1d1f23, { roughness: 0.4 });
-
-  group.add(box(0.26, 0.02, 0.18, dark, 0, 0.76, -2.68));
-  group.add(box(0.05, 0.3, 0.04, dark, 0, 0.9, -2.7));
-  group.add(box(0.8, 0.48, 0.035, dark, 0, 1.18, -2.67));
-
-  const screenCanvas = document.createElement('canvas');
-  screenCanvas.width = 256;
-  screenCanvas.height = 144;
-  const ctx = screenCanvas.getContext('2d');
-  const texture = new THREE.CanvasTexture(screenCanvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-
-  const screen = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.74, 0.42),
-    new THREE.MeshBasicMaterial({ map: texture }),
-  );
-  screen.position.set(0, 1.18, -2.65);
-  group.add(screen);
-
-  const glow = new THREE.PointLight(0x8fc7ff, 0.6, 3);
-  glow.position.set(0, 1.2, -2.3);
-  group.add(glow);
-
-  const colors = ['#7ee787', '#79c0ff', '#e6edf3', '#ffa657', '#d2a8ff'];
-  const lines = [];
-  const newLine = () => ({
-    indent: Math.floor(Math.random() * 4) * 12,
-    width: 30 + Math.random() * 130,
-    color: colors[Math.floor(Math.random() * colors.length)],
-  });
-  for (let i = 0; i < 11; i++) lines.push(newLine());
-
-  function draw() {
-    ctx.fillStyle = '#0d1117';
-    ctx.fillRect(0, 0, 256, 144);
-    ctx.fillStyle = '#161b22';
-    ctx.fillRect(0, 0, 256, 12);
-    lines.forEach((line, i) => {
-      ctx.fillStyle = line.color;
-      ctx.fillRect(10 + line.indent, 20 + i * 11, line.width, 5);
-    });
-    texture.needsUpdate = true;
-  }
-  draw();
-
-  let lastStep = 0;
-  function update(time) {
-    if (time - lastStep < 0.35) return;
-    lastStep = time;
-    lines.shift();
-    lines.push(newLine());
-    draw();
-  }
-
-  return { group, update };
-}
-
-function createBookshelf() {
-  const group = new THREE.Group();
-  const wood = mat(0x7b5a3c);
-  const x = -ROOM / 2 + 0.25;
-  const z = 0.4;
-
-  group.add(box(0.35, 1.9, 0.04, wood, x, 0.95, z - 0.6));
-  group.add(box(0.35, 1.9, 0.04, wood, x, 0.95, z + 0.6));
-  for (const y of [0.05, 0.5, 0.95, 1.4, 1.88]) {
-    group.add(box(0.35, 0.04, 1.2, wood, x, y, z));
-  }
-
-  const bookColors = [0xc0503a, 0x3e7cb1, 0xe0b040, 0x4f9d69, 0x8a5fb0, 0xd98a3d];
-  for (const shelfY of [0.07, 0.52, 0.97, 1.42]) {
-    let offset = -0.52;
-    let i = 0;
-    while (offset < 0.4) {
-      const thickness = 0.05 + ((i * 7) % 4) * 0.015;
-      const height = 0.26 + ((i * 5) % 3) * 0.04;
-      const color = bookColors[(i + Math.round(shelfY * 10)) % bookColors.length];
-      group.add(box(0.22, height, thickness, mat(color), x, shelfY + height / 2, z + offset + thickness / 2));
-      offset += thickness + 0.008;
-      i++;
-    }
-  }
-
-  return group;
-}
-
-function createPlant() {
-  const group = new THREE.Group();
-  group.add(cylinder(0.2, 0.15, 0.36, mat(0xb5654a), 0, 0.18, 0));
-  group.add(cylinder(0.025, 0.025, 0.5, mat(0x5b4530), 0, 0.6, 0, 8));
-
-  const leaf = mat(0x3f8f55, { flatShading: true });
-  const blobs = [
-    [0, 1.0, 0, 0.3],
-    [0.18, 0.82, 0.08, 0.2],
-    [-0.16, 0.85, -0.1, 0.22],
-    [0.02, 0.8, -0.2, 0.18],
-  ];
-  for (const [x, y, z, r] of blobs) {
-    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), leaf);
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    group.add(mesh);
-  }
-
-  group.position.set(-3.3, 0, -3.3);
-  return group;
-}
-
-// Wall clock that shows the real time.
-function createClock() {
-  const group = new THREE.Group();
-  group.position.set(-1.8, 2.2, -ROOM / 2 + 0.07);
-
-  const rim = cylinder(0.24, 0.24, 0.03, mat(0x2b2f36), 0, 0, 0, 32);
-  rim.rotation.x = Math.PI / 2;
-  group.add(rim);
-  const face = cylinder(0.21, 0.21, 0.032, mat(0xffffff), 0, 0, 0.002, 32);
-  face.rotation.x = Math.PI / 2;
-  group.add(face);
-
-  const handMaterial = mat(0x1d1f23);
-  const makeHand = (length, width) => {
-    const pivot = new THREE.Group();
-    pivot.position.z = 0.025;
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(width, length, 0.008), handMaterial);
-    hand.position.y = length / 2;
-    pivot.add(hand);
-    group.add(pivot);
-    return pivot;
+  // Glass partitions with a door gap on the workstation side.
+  const glass = mat(0xbfe3f5, { transparent: true, opacity: 0.22, roughness: 0.1, depthWrite: false });
+  const frosted = mat(0xffffff, { transparent: true, opacity: 0.3, depthWrite: false });
+  const frame = mat(0x2b2f36);
+  const panel = (w, h, d, material, x, y, z) => {
+    const mesh = box(w, h, d, material, x, y, z);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    return mesh;
   };
-  const hourHand = makeHand(0.1, 0.02);
-  const minuteHand = makeHand(0.16, 0.014);
 
-  function update() {
-    const now = new Date();
-    const minutes = now.getMinutes() + now.getSeconds() / 60;
-    const hours = (now.getHours() % 12) + minutes / 60;
-    minuteHand.rotation.z = -(minutes / 60) * Math.PI * 2;
-    hourHand.rotation.z = -(hours / 12) * Math.PI * 2;
+  group.add(panel(0.04, 2.6, 4.4, glass, 0.05, 1.3, -3.8));
+  group.add(panel(0.04, 2.6, 0.4, glass, 0.05, 1.3, -0.2));
+  group.add(panel(7.9, 2.6, 0.04, glass, 4.05, 1.3, 0));
+  group.add(panel(7.9, 0.5, 0.045, frosted, 4.05, 1.15, 0));
+  group.add(panel(0.045, 0.5, 4.4, frosted, 0.05, 1.15, -3.8));
+
+  group.add(box(0.06, 0.06, 6, frame, 0.05, 2.63, -3));
+  group.add(box(8, 0.06, 0.06, frame, 4, 2.63, 0));
+  for (const z of [-1.6, -0.4, 0]) group.add(box(0.06, 2.6, 0.06, frame, 0.05, 1.3, z));
+  group.add(box(0.06, 2.6, 0.06, frame, 7.97, 1.3, 0));
+
+  // Table and six chairs
+  const tableWood = mat(0x7a5536);
+  group.add(box(3.2, 0.07, 1.3, tableWood, 4, 0.72, -3));
+  for (const x of [2.7, 5.3]) group.add(box(0.1, 0.69, 1.0, tableWood, x, 0.345, -3));
+  for (const x of [3, 4, 5]) {
+    group.add(place(createChair(0x4a5568), x, 0, -2.05));
+    group.add(place(createChair(0x4a5568), x, 0, -3.95, Math.PI));
   }
-  update();
 
-  return { group, update };
+  // Whiteboard on the back wall
+  group.add(box(2.5, 1.3, 0.03, mat(0x9aa3ad), 4, 1.75, BACK + 0.065));
+  group.add(box(2.4, 1.2, 0.03, mat(0xffffff, { roughness: 0.4 }), 4, 1.75, BACK + 0.08));
+  const scribbles = [
+    [3.3, 2.1, 0.7, 0x3e7cb1],
+    [3.45, 1.95, 1.0, 0x3e7cb1],
+    [3.2, 1.8, 0.5, 0xc0503a],
+    [4.6, 1.6, 0.6, 0x4f9d69],
+    [4.45, 1.45, 0.9, 0x4f9d69],
+  ];
+  for (const [x, y, w, color] of scribbles) {
+    group.add(box(w, 0.03, 0.01, mat(color), x, y, BACK + 0.1));
+  }
+
+  group.add(place(createPlant(), 7.3, 0, -5.3));
+  group.add(label('Meeting Room', 4, -0.8));
+
+  return group;
+}
+
+function createPantry() {
+  const group = new THREE.Group();
+
+  group.add(floorPatch(7.9, 5.9, 0xdedad2, -4, 3)); // tiles
+
+  // Counter along the left wall, with cabinets above
+  const cabinet = mat(0x6f8f86);
+  const steel = mat(0x3a3f47, { roughness: 0.5, metalness: 0.6 });
+  group.add(box(0.6, 0.9, 3.6, cabinet, -7.68, 0.45, 3));
+  group.add(box(0.66, 0.05, 3.7, mat(0x3b3f45, { roughness: 0.4 }), -7.66, 0.925, 3));
+  group.add(box(0.35, 0.6, 3.6, mat(0xf2efe9), -7.8, 2.0, 3));
+  for (let i = 1; i < 4; i++) {
+    group.add(box(0.01, 0.8, 0.02, mat(0x4f6a63), -7.375, 0.45, 1.2 + i * 0.9));
+    group.add(box(0.01, 0.56, 0.02, mat(0xcfcac0), -7.62, 2.0, 1.2 + i * 0.9));
+  }
+
+  // Coffee machine, mugs, microwave, sink
+  group.add(box(0.3, 0.4, 0.28, mat(0x23262b, { roughness: 0.4 }), -7.7, 1.15, 2.0));
+  group.add(box(0.12, 0.03, 0.16, steel, -7.56, 1.0, 2.0));
+  [0xd9523f, 0xf7f5ef, 0x3e7cb1].forEach((color, i) => {
+    group.add(cylinder(0.04, 0.035, 0.09, mat(color), -7.6, 0.995, 1.45 + i * 0.12));
+  });
+  group.add(box(0.36, 0.28, 0.5, mat(0xe3e6ea), -7.72, 1.09, 2.9));
+  group.add(box(0.01, 0.2, 0.34, mat(0x23262b), -7.535, 1.09, 2.85));
+  group.add(box(0.4, 0.02, 0.55, steel, -7.65, 0.955, 4.0));
+  group.add(cylinder(0.015, 0.015, 0.25, steel, -7.86, 1.07, 4.0, 8));
+  group.add(box(0.16, 0.02, 0.02, steel, -7.79, 1.19, 4.0));
+
+  // Fridge
+  const fridge = mat(0xd8dde2, { roughness: 0.4 });
+  group.add(box(0.75, 1.9, 0.7, fridge, -7.58, 0.95, 5.3));
+  group.add(box(0.01, 0.02, 0.7, steel, -7.2, 1.25, 5.3));
+  group.add(box(0.03, 0.35, 0.03, steel, -7.19, 1.55, 5.05));
+  group.add(box(0.03, 0.35, 0.03, steel, -7.19, 0.95, 5.05));
+
+  // Water dispenser
+  group.add(box(0.34, 1.0, 0.34, mat(0xf2f2f2), -7.7, 0.5, 0.75));
+  group.add(
+    cylinder(0.13, 0.13, 0.36, mat(0x6fb7e8, { transparent: true, opacity: 0.7 }), -7.7, 1.18, 0.75),
+  );
+
+  // High table with three stools
+  const tableX = -4;
+  const tableZ = 3;
+  group.add(cylinder(0.55, 0.55, 0.05, mat(0xf2efe9), tableX, 1.05, tableZ, 32));
+  group.add(cylinder(0.04, 0.04, 1.0, steel, tableX, 0.53, tableZ, 12));
+  group.add(cylinder(0.3, 0.3, 0.04, steel, tableX, 0.02, tableZ, 24));
+  for (let i = 0; i < 3; i++) {
+    const angle = (i / 3) * Math.PI * 2 + Math.PI / 2; // people stand in the gaps (see routes.js)
+    const x = tableX + Math.cos(angle) * 0.95;
+    const z = tableZ + Math.sin(angle) * 0.95;
+    group.add(cylinder(0.17, 0.17, 0.05, mat(0xe0a030), x, 0.72, z, 20));
+    group.add(cylinder(0.025, 0.025, 0.7, steel, x, 0.36, z, 8));
+    group.add(cylinder(0.18, 0.18, 0.03, steel, x, 0.015, z, 20));
+  }
+  group.add(cylinder(0.04, 0.035, 0.09, mat(0xd9523f), tableX + 0.2, 1.12, tableZ - 0.1));
+
+  // Planter that separates the pantry from the workstations
+  group.add(box(4, 0.5, 0.35, mat(0x8c7a63), -5.4, 0.25, 0));
+  const leaf = mat(0x3f8f55, { flatShading: true });
+  for (let i = 0; i < 8; i++) {
+    const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.24 + (i % 3) * 0.03, 0), leaf);
+    bush.position.set(-7.15 + i * 0.5, 0.62, 0);
+    bush.rotation.y = i;
+    bush.castShadow = true;
+    group.add(bush);
+  }
+
+  group.add(label('Pantry', -4, 5.3));
+
+  return group;
+}
+
+function createRestArea() {
+  const group = new THREE.Group();
+
+  group.add(floorPatch(5.2, 3.8, 0xc9805a, 4, 2.9, 0.012)); // rug
+
+  group.add(place(createSofa(2.2, 0x586f8c), 4, 0, 1.0));
+  group.add(place(createSofa(1.0, 0x7a8f5a), 6.7, 0, 2.9, -Math.PI / 2));
+
+  // Coffee table
+  const wood = mat(0xa9774a);
+  group.add(box(1.2, 0.05, 0.6, wood, 4, 0.4, 2.6));
+  for (const x of [3.47, 4.53]) {
+    for (const z of [2.37, 2.83]) group.add(box(0.05, 0.38, 0.05, wood, x, 0.19, z));
+  }
+  group.add(box(0.26, 0.03, 0.2, mat(0x3e7cb1), 3.8, 0.44, 2.6));
+  group.add(cylinder(0.04, 0.035, 0.09, mat(0xf7f5ef), 4.3, 0.47, 2.7));
+
+  // Bean bags
+  const beanBags = [
+    [1.9, 3.2, 0xe0a030],
+    [2.7, 4.3, 0xc0503a],
+    [5.5, 4.3, 0x3f9a96],
+  ];
+  for (const [x, z, color] of beanBags) {
+    const bag = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 12), mat(color));
+    bag.scale.y = 0.65;
+    bag.position.set(x, 0.29, z);
+    bag.castShadow = true;
+    bag.receiveShadow = true;
+    group.add(bag);
+  }
+
+  // Floor lamp
+  group.add(cylinder(0.16, 0.16, 0.03, mat(0x2b2f36), 2.2, 0.015, 0.9));
+  group.add(cylinder(0.02, 0.02, 1.5, mat(0x2b2f36), 2.2, 0.75, 0.9, 8));
+  group.add(
+    cylinder(0.12, 0.22, 0.28, mat(0xfff0cf, { emissive: 0xffd9a0, emissiveIntensity: 0.8 }), 2.2, 1.6, 0.9),
+  );
+  const lampLight = new THREE.PointLight(0xffd9a0, 4, 6);
+  lampLight.position.set(2.2, 1.4, 1.2);
+  group.add(lampLight);
+
+  group.add(place(createPlant(1.15), 7.3, 0, 0.9));
+  group.add(place(createPlant(0.9), 0.8, 0, 5.3));
+  group.add(label('Rest Area', 4, 5.4));
+
+  return group;
 }
 
 export function createOffice() {
   const group = new THREE.Group();
-  const monitor = createMonitor();
-  const clock = createClock();
+  const updaters = [];
 
   group.add(
-    createRoom(),
-    createWindow(),
-    createDesk(),
-    monitor.group,
-    createBookshelf(),
-    createPlant(),
-    clock.group,
+    createShell(),
+    createWorkstationArea(updaters),
+    createMeetingRoom(),
+    createPantry(),
+    createRestArea(),
   );
 
   function update(time) {
-    monitor.update(time);
-    clock.update();
+    for (const fn of updaters) fn(time);
   }
 
   return { group, update };
