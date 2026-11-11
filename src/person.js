@@ -167,6 +167,7 @@ const between = (min, max) => min + Math.random() * (max - min);
 
 // A person who works at `desk`, takes breaks at one of the shared `spots`,
 // then walks back. See routes.js for the shape of `desk` and `spots`.
+// `workTime` is the [min, max] seconds spent at the desk between breaks.
 export function createPerson({
   name,
   boss = false,
@@ -176,7 +177,9 @@ export function createPerson({
   tie: tieColor = null,
   desk,
   spots,
+  findPath,
   firstBreak = 5,
+  workTime = [10, 20],
 }) {
   const group = new THREE.Group();
   group.position.set(desk.seat[0], 0, desk.seat[1]);
@@ -247,12 +250,19 @@ export function createPerson({
 
   const queue = [];
   const state = { walking: false, seated: true, lift: 0, action: 'work', walkPhase: 0 };
-  let yaw = 0;
-  let targetYaw = 0;
+  let yaw = desk.face;
+  let targetYaw = desk.face;
   let pose = targetPose(state, 0);
   let clock = Math.random() * 10;
 
-  const workStep = (seconds) => ({ act: true, action: 'work', face: 0, sit: true, lift: 0, left: seconds });
+  const workStep = (seconds) => ({
+    act: true,
+    action: 'work',
+    face: desk.face,
+    sit: true,
+    lift: 0,
+    left: seconds,
+  });
   queue.push(workStep(firstBreak));
 
   function planBreak() {
@@ -264,13 +274,13 @@ export function createPerson({
     const spot = pick(free);
     spot.busy = true;
 
-    const route = [desk.side, desk.aisle, ...spot.path];
+    const route = [desk.side, ...findPath(desk.node, spot.node), ...(spot.approach ?? [])];
     const last = route[route.length - 1];
     const sit = Boolean(spot.seat);
     const lift = spot.lift ?? 0;
 
     // There
-    queue.push({ slide: true, x: desk.side[0], z: desk.side[1], face: 0, sit: false });
+    queue.push({ slide: true, x: desk.side[0], z: desk.side[1], face: desk.face, sit: false });
     for (const [x, z] of route.slice(1)) queue.push({ walk: true, x, z });
     if (sit) queue.push({ slide: true, x: spot.seat[0], z: spot.seat[1], face: spot.face, sit: true, lift });
     queue.push({
@@ -288,8 +298,8 @@ export function createPerson({
     // And back
     if (sit) queue.push({ slide: true, x: last[0], z: last[1], face: spot.face, sit: false });
     for (const [x, z] of route.slice(0, -1).reverse()) queue.push({ walk: true, x, z });
-    queue.push({ slide: true, x: desk.seat[0], z: desk.seat[1], face: 0, sit: true, lift: 0 });
-    queue.push(workStep(between(10, 20)));
+    queue.push({ slide: true, x: desk.seat[0], z: desk.seat[1], face: desk.face, sit: true, lift: 0 });
+    queue.push(workStep(between(workTime[0], workTime[1])));
   }
 
   function advance(dt) {

@@ -14,22 +14,28 @@ import {
 
 // Floor plan (seen from above, camera sits at the bottom right):
 //
-//   x = -8                0                 8
-//   z = -6 +--------------+-----------------+
-//          | Workstations |  Meeting room   |
-//   z =  0 +--------------+-----------------+
-//          | Pantry       |  Rest area      |
-//   z =  6 +--------------+-----------------+
+//   x = -8                0                 8             14
+//   z = -6 +--------------+-----------------+-------------+
+//          | Workstations |  Meeting room   |  Boss room  |
+//   z =  0 +--------------+-----------------+-------------+
+//          | Pantry       |  Rest area      |  Reception  |
+//   z =  6 +--------------+-----------------+-------------+
 //
 // The back (z = -6) and left (x = -8) sides have walls; the other two are open.
 
-const WIDTH = 16;
+const WIDTH = 22;
 const DEPTH = 12;
 const WALL_HEIGHT = 3;
 const BACK = -DEPTH / 2;
-const LEFT = -WIDTH / 2;
+const LEFT = -8;
+const CENTER_X = LEFT + WIDTH / 2;
 
-// Where each workstation's desk stands. The worker sits 0.8 in front (+z).
+// Where the boss's and the receptionist's desks stand. Both people face the
+// front of the office (+z), so these desks are turned around.
+export const BOSS_DESK = { x: 11, z: -3.3 };
+export const RECEPTION_DESK = { x: 11, z: 2.5 };
+
+// Where each workstation's desk stands. The worker sits 0.8 in front (+z), facing the back wall.
 export const DESK_POSITIONS = [
   { x: -6.2, z: -4.6 },
   { x: -4.0, z: -4.6 },
@@ -48,15 +54,31 @@ function label(text, x, z) {
   return mesh;
 }
 
+function glassMaterials() {
+  return {
+    glass: mat(0xbfe3f5, { transparent: true, opacity: 0.22, roughness: 0.1, depthWrite: false }),
+    frosted: mat(0xffffff, { transparent: true, opacity: 0.3, depthWrite: false }),
+    frame: mat(0x2b2f36),
+  };
+}
+
+// A see-through wall panel that neither casts nor receives shadows.
+function panel(w, h, d, material, x, y, z) {
+  const mesh = box(w, h, d, material, x, y, z);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+}
+
 function createShell() {
   const group = new THREE.Group();
 
-  group.add(box(WIDTH, 0.1, DEPTH, mat(0xc9b79c), 0, -0.05, 0)); // floor
-  group.add(box(WIDTH, WALL_HEIGHT, 0.1, mat(0xe9e4da), 0, WALL_HEIGHT / 2, BACK)); // back wall
+  group.add(box(WIDTH, 0.1, DEPTH, mat(0xc9b79c), CENTER_X, -0.05, 0)); // floor
+  group.add(box(WIDTH, WALL_HEIGHT, 0.1, mat(0xe9e4da), CENTER_X, WALL_HEIGHT / 2, BACK)); // back wall
   group.add(box(0.1, WALL_HEIGHT, DEPTH, mat(0xdfd9cd), LEFT, WALL_HEIGHT / 2, 0)); // left wall
 
   const skirting = mat(0x8c7a63);
-  group.add(box(WIDTH, 0.12, 0.04, skirting, 0, 0.06, BACK + 0.07));
+  group.add(box(WIDTH, 0.12, 0.04, skirting, CENTER_X, 0.06, BACK + 0.07));
   group.add(box(0.04, 0.12, DEPTH, skirting, LEFT + 0.07, 0.06, 0));
 
   return group;
@@ -95,15 +117,7 @@ function createMeetingRoom() {
   group.add(floorPatch(7.9, 5.9, 0xb08d62, 4, -3)); // wooden floor
 
   // Glass partitions with a door gap on the workstation side.
-  const glass = mat(0xbfe3f5, { transparent: true, opacity: 0.22, roughness: 0.1, depthWrite: false });
-  const frosted = mat(0xffffff, { transparent: true, opacity: 0.3, depthWrite: false });
-  const frame = mat(0x2b2f36);
-  const panel = (w, h, d, material, x, y, z) => {
-    const mesh = box(w, h, d, material, x, y, z);
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    return mesh;
-  };
+  const { glass, frosted, frame } = glassMaterials();
 
   group.add(panel(0.04, 2.6, 4.4, glass, 0.05, 1.3, -3.8));
   group.add(panel(0.04, 2.6, 0.4, glass, 0.05, 1.3, -0.2));
@@ -267,6 +281,83 @@ function createRestArea() {
   return group;
 }
 
+function createBossRoom(updaters) {
+  const group = new THREE.Group();
+
+  group.add(floorPatch(5.9, 5.9, 0x4a4f5c, 11, -3)); // dark carpet
+  group.add(floorPatch(3.4, 2.6, 0x8c3f3a, 11, -3.6, 0.022)); // rug under the desk
+
+  // Glass walls: shared with the meeting room (x = 8) and facing reception (z = 0),
+  // with a door gap between x = 9 and x = 10.
+  const { glass, frosted, frame } = glassMaterials();
+  group.add(panel(0.04, 2.6, 6, glass, 8, 1.3, -3));
+  group.add(panel(0.045, 0.5, 6, frosted, 8, 1.15, -3));
+  group.add(panel(1.0, 2.6, 0.04, glass, 8.5, 1.3, 0));
+  group.add(panel(4.0, 2.6, 0.04, glass, 12, 1.3, 0));
+  group.add(panel(1.0, 0.5, 0.045, frosted, 8.5, 1.15, 0));
+  group.add(panel(4.0, 0.5, 0.045, frosted, 12, 1.15, 0));
+  group.add(box(0.06, 0.06, 6, frame, 8, 2.63, -3));
+  group.add(box(6, 0.06, 0.06, frame, 11, 2.63, 0));
+  for (const x of [9, 10, 13.97]) group.add(box(0.06, 2.6, 0.06, frame, x, 1.3, 0));
+
+  const { x, z } = BOSS_DESK;
+  group.add(place(createDesk(), x, 0, z, Math.PI));
+  group.add(place(createChair(0x1d1f23), x, 0, z - 0.9, Math.PI));
+  const monitor = createMonitor();
+  group.add(place(monitor.group, x, 0, z, Math.PI));
+  updaters.push(monitor.update);
+
+  // Low cabinet with a trophy and a picture frame on the back wall
+  group.add(box(2.2, 0.8, 0.4, mat(0x5a4130), 11, 0.4, BACK + 0.28));
+  group.add(cylinder(0.05, 0.08, 0.06, mat(0x2b2f36), 11.6, 0.83, BACK + 0.28));
+  group.add(
+    cylinder(0.09, 0.04, 0.2, mat(0xe0b040, { metalness: 0.7, roughness: 0.3 }), 11.6, 0.96, BACK + 0.28),
+  );
+  group.add(box(0.3, 0.22, 0.03, mat(0xf7f5ef), 10.5, 0.92, BACK + 0.25));
+
+  group.add(place(createWindow(), 11, 2.05, BACK + 0.06));
+  group.add(place(createSofa(1.6, 0x3b3f45), 8.75, 0, -3.6, Math.PI / 2));
+  group.add(place(createPlant(1.1), 13.3, 0, -5.3));
+  group.add(label('Boss Room', 11, -0.8));
+
+  return group;
+}
+
+function createReception(updaters) {
+  const group = new THREE.Group();
+
+  group.add(floorPatch(5.9, 5.9, 0xe6e1d6, 11, 3)); // light stone floor
+  group.add(floorPatch(2.2, 0.9, 0x3b3f45, 11, 5.4, 0.022)); // door mat at the entrance
+
+  // Desk faces the entrance, with a tall front counter for visitors.
+  const { x, z } = RECEPTION_DESK;
+  group.add(place(createDesk(), x, 0, z, Math.PI));
+  group.add(place(createChair(), x, 0, z - 0.8, Math.PI));
+  const monitor = createMonitor();
+  group.add(place(monitor.group, x, 0, z, Math.PI));
+  updaters.push(monitor.update);
+
+  const counter = mat(0x2f4a5c);
+  group.add(box(2.3, 1.1, 0.1, counter, x, 0.55, z + 0.52));
+  group.add(box(0.1, 1.1, 0.7, counter, x - 1.1, 0.55, z + 0.2));
+  group.add(box(0.1, 1.1, 0.7, counter, x + 1.1, 0.55, z + 0.2));
+  group.add(box(2.4, 0.05, 0.32, mat(0xf2efe9), x, 1.125, z + 0.48));
+  group.add(
+    box(1.4, 0.3, 0.02, mat(0xffd257, { emissive: 0xffd257, emissiveIntensity: 0.25 }), x, 0.65, z + 0.58),
+  );
+
+  // Waiting area
+  group.add(place(createSofa(1.6, 0x8a6d9c), 13.3, 0, 3.6, -Math.PI / 2));
+  group.add(cylinder(0.3, 0.3, 0.04, mat(0xa9774a), 12.2, 0.42, 4.7, 24));
+  group.add(cylinder(0.04, 0.04, 0.4, mat(0x3a3f47), 12.2, 0.2, 4.7, 8));
+  group.add(box(0.24, 0.02, 0.3, mat(0xc0503a), 12.2, 0.45, 4.7));
+  group.add(place(createPlant(1.1), 13.4, 0, 0.8));
+  group.add(place(createPlant(0.9), 8.7, 0, 5.3));
+  group.add(label('Reception', 11, 4.4));
+
+  return group;
+}
+
 export function createOffice() {
   const group = new THREE.Group();
   const updaters = [];
@@ -277,6 +368,8 @@ export function createOffice() {
     createMeetingRoom(),
     createPantry(),
     createRestArea(),
+    createBossRoom(updaters),
+    createReception(updaters),
   );
 
   function update(time) {

@@ -1,6 +1,14 @@
 # 3D Office
 
-A small 3D office scene built with [Three.js](https://threejs.org/) and Vite. The office has four zones — workstations, a meeting room, a pantry and a rest area — and three named people (Rong Zhao, Chee Chong and the boss, Chang Kiat). They type at their desks, then get up and walk to the pantry to eat or get coffee, sit in the rest area, or look at the meeting room whiteboard, and walk back. There is no other functionality yet.
+A small 3D office scene built with [Three.js](https://threejs.org/) and Vite.
+
+The office has six areas: workstations, a meeting room, a boss room, a pantry, a rest area and reception. Five named people work in it:
+
+- Rong Zhao, Amir and Chee Chong at the workstations
+- Chang Kiat (Boss) in the boss room
+- Tracy at reception
+
+They type at their desks, then get up and walk to the pantry to eat or get coffee, sit in the rest area, or look at the meeting room whiteboard, and walk back. There is no other functionality yet.
 
 ## Run
 
@@ -27,8 +35,8 @@ The static site is written to `dist/`.
 
 - `index.html` – page shell
 - `src/main.js` – renderer, camera, lights, animation loop
-- `src/office.js` – floor plan and the four zones
+- `src/office.js` – floor plan and the six areas
 - `src/furniture.js` – reusable furniture (desk, monitor, chair, sofa, plant, …)
 - `src/person.js` – a person: body, name tag, animations and break behaviour
-- `src/routes.js` – desk positions, walking paths and break spots
+- `src/routes.js` – seats, the walkway graph and break spots
 - `src/helpers.js` – small mesh helpers
