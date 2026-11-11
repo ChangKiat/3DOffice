@@ -4,7 +4,7 @@ A small 3D office scene built with [Three.js](https://threejs.org/) and Vite.
 
 The office has six areas: workstations, a meeting room, a boss room, a pantry, a rest area and reception. Five named people work in it:
 
-- Rong Zhao, Amir and Chee Chong at the workstations
+- Rong Zhao, Azmir and Chee Chong at the workstations
 - Chang Kiat (Boss) in the boss room
 - Tracy at reception
 

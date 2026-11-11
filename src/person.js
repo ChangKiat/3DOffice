@@ -175,6 +175,7 @@ export function createPerson({
   hair: hairColor = 0x3a2a1e,
   skin: skinColor = 0xe8b796,
   tie: tieColor = null,
+  longHair = false,
   desk,
   spots,
   findPath,
@@ -215,6 +216,11 @@ export function createPerson({
   hairCap.rotation.x = 0.35; // sits further down the back of the head
   hairCap.castShadow = true;
   head.add(hairCap);
+  if (longHair) {
+    // Hair falling to the shoulders at the back and sides.
+    head.add(box(0.3, 0.36, 0.1, hair, 0, -0.13, 0.11));
+    for (const x of [-0.15, 0.15]) head.add(box(0.05, 0.28, 0.16, hair, x, -0.11, 0.03));
+  }
 
   const eyeMaterial = mat(0x1d1f23);
   for (const x of [-0.06, 0.06]) {

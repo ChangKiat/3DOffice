@@ -50,7 +50,7 @@ scene.add(office.group);
 // The team. `firstBreak` staggers when each person first gets up, in seconds.
 const team = [
   { name: 'Rong Zhao', desk: WORK_DESKS[0], shirt: 0x3f7fd1, hair: 0x1d1a18, skin: 0xe8b796, firstBreak: 3 },
-  { name: 'Amir', desk: WORK_DESKS[1], shirt: 0xd98a3d, hair: 0x1d1a18, skin: 0xc68e6a, firstBreak: 14 },
+  { name: 'Azmir', desk: WORK_DESKS[1], shirt: 0xd98a3d, hair: 0x1d1a18, skin: 0xc68e6a, firstBreak: 14 },
   { name: 'Chee Chong', desk: WORK_DESKS[2], shirt: 0x4f9d69, hair: 0x3a2a1e, skin: 0xd9a47c, firstBreak: 9 },
   {
     name: 'Chang Kiat',
@@ -65,8 +65,9 @@ const team = [
   {
     name: 'Tracy',
     desk: RECEPTION_SEAT,
-    shirt: 0x8a5fb0,
+    shirt: 0xd9609a,
     hair: 0x3a2a1e,
+    longHair: true,
     skin: 0xf0c8a8,
     firstBreak: 22,
     workTime: [18, 30], // reception is left empty less often
