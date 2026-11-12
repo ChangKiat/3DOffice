@@ -275,6 +275,11 @@ export function createPerson({
     nameTag.position.y = tagY;
   }
 
+  // World position just above the name tag, where a speech bubble points.
+  function bubbleAnchor(target) {
+    return target.set(group.position.x, (tagY ?? 2) + 0.28, group.position.z);
+  }
+
   // What the person is doing right now, in words (used by the chat).
   function activity() {
     const last = queue[queue.length - 1];
@@ -314,5 +319,5 @@ export function createPerson({
     }),
   });
 
-  return { name, boss, desk, group, update, holdAt, release, activity, debug };
+  return { name, boss, desk, group, update, holdAt, release, activity, bubbleAnchor, debug };
 }

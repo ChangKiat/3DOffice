@@ -6,7 +6,9 @@ const STAFF = ['Tracy', 'Rong Zhao', 'Azmir', 'Chee Chong'];
 // `getActivity(name)` returns what that person is doing in the office right now.
 // `onActive(name)` is called whenever the conversation with that person is in use,
 // and `onLeave()` when the boss stops talking to them.
-export function setupChat({ getActivity, onActive, onLeave }) {
+// `onReplyText(name, text)` gets the reply so far as it streams in ("…" while
+// waiting), and `onReplyEnd(name, ok)` is called when it finishes or fails.
+export function setupChat({ getActivity, onActive, onLeave, onReplyText, onReplyEnd }) {
   const panel = document.getElementById('chat');
   const toggle = document.getElementById('chat-toggle');
   const select = document.getElementById('chat-staff');
@@ -55,6 +57,7 @@ export function setupChat({ getActivity, onActive, onLeave }) {
     messages.push({ role: 'user', content: text });
     addBubble('me', text);
     const bubble = addBubble('them pending', '…');
+    onReplyText(staff, '…');
     setBusy(true);
 
     try {
@@ -78,17 +81,20 @@ export function setupChat({ getActivity, onActive, onLeave }) {
         reply += decoder.decode(value, { stream: true });
         bubble.classList.remove('pending');
         bubble.textContent = reply;
+        onReplyText(staff, reply);
         log.scrollTop = log.scrollHeight;
       }
 
       if (reply.trim() === '') throw new Error('No reply came back.');
       messages.push({ role: 'assistant', content: reply });
       onActive(staff); // keep them here while the boss reads the reply
+      onReplyEnd(staff, true);
     } catch (error) {
       // Take the question back out so the conversation still alternates.
       messages.pop();
       bubble.className = 'chat-bubble error';
       bubble.textContent = error.message;
+      onReplyEnd(staff, false);
     } finally {
       setBusy(false);
       input.focus();

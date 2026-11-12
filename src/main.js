@@ -6,6 +6,7 @@ import { createBoxBody } from './bodyBox.js';
 import { createModelBody } from './bodyModel.js';
 import { loadCharacterAssets } from './models.js';
 import { setupChat } from './chat.js';
+import { createBubbles } from './bubbles.js';
 import {
   createSpots,
   findPath,
@@ -174,6 +175,7 @@ const findBoss = () => people.find((person) => person.boss);
 function endTalk() {
   clearTimeout(talkTimer);
   if (talkingWith === null) return;
+  bubbles.clear(talkingWith);
   findPerson(talkingWith)?.release();
   findBoss()?.release();
   talkingWith = null;
@@ -194,10 +196,24 @@ function startTalk(name) {
   boss.holdAt(boss.desk, 'talk');
 }
 
+// Replies also appear in a speech bubble above the person who is talking.
+const bubbles = createBubbles({
+  camera,
+  canvas,
+  getAnchor: (name, target) => {
+    const person = findPerson(name);
+    if (!person) return false;
+    person.bubbleAnchor(target);
+    return true;
+  },
+});
+
 setupChat({
   getActivity: (name) => findPerson(name)?.activity() ?? 'at work in the office',
   onActive: startTalk,
   onLeave: endTalk,
+  onReplyText: (name, text) => bubbles.say(name, text),
+  onReplyEnd: (name, ok) => (ok ? bubbles.done(name) : bubbles.clear(name)),
 });
 
 function resize() {
@@ -217,4 +233,5 @@ renderer.setAnimationLoop(() => {
   for (const person of people) person.update(dt);
   controls.update();
   renderer.render(scene, camera);
+  bubbles.update();
 });

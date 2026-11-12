@@ -36,7 +36,7 @@ To turn it on:
 
 When you message someone they walk to the boss's room and stand in front of the desk, face to face with the boss. They go back to work when you switch to someone else, minimise the chat, or 45 seconds pass without a message.
 
-The staff answer in character and know what they are doing in the office at that moment.
+The staff answer in character and know what they are doing in the office at that moment. Each reply also appears in a speech bubble above the person, which fades after a few seconds; long replies are cut short there and shown in full in the chat panel.
 
 ### Tracking application data
 
@@ -82,6 +82,7 @@ They are converted from Mixamo FBX downloads with FBX2glTF, and the character te
 - `src/routes.js` – seats, the walkway graph and break spots
 - `src/helpers.js` – small mesh helpers
 - `src/chat.js` – the chat panel
+- `src/bubbles.js` – speech bubbles that follow a person's head
 - `server/chat.js` – the chat endpoint that calls Claude
 - `server/data.js` – read-only access to the tracking database and the description of its tables
 - `vite.config.js` – loads `.env` and adds the chat endpoint to the Vite server
