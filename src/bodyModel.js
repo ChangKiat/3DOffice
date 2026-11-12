@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mat, cylinder } from './helpers.js';
+import { mat, box, cylinder } from './helpers.js';
 
 // A person's body built from a Mixamo character (see models.js).
 //
@@ -9,6 +9,8 @@ import { mat, cylinder } from './helpers.js';
 // Typing has no recorded loop, so it is animated in code on top of the seated
 // typing pose: fingers tap, wrists bob, the hands drift across the keyboard and
 // the head glances down at the keys now and then.
+// Eating reuses the drinking clip's reach to the mouth (it is the left hand in
+// that clip), played as quick bites with chewing in between.
 
 const SEAT_LIFT = 0.0; // raises a seated character so it rests on an office chair
 const SEAT_BACK = 0.0; // moves a seated character back (+) or forward (-) on the seat
@@ -19,6 +21,24 @@ const MAX_WALK_RATE = 1.7;
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+// Where the drinking clip raises the hand, holds it at the mouth and lowers it
+// again (seconds into the clip), and how one bite is cut from those parts.
+const SIP = { raise: 2.1, atMouth: 2.9, lower: 5.0, down: 5.7 };
+const BITE = { raise: 0.6, hold: 0.45, lower: 0.55, chew: 1.7 }; // seconds each
+const BITE_TIME = BITE.raise + BITE.hold + BITE.lower + BITE.chew;
+
+// Clip time and how hard the person is chewing (0 to 1), `t` seconds into a bite.
+function biteAt(t) {
+  if (t < BITE.raise) return { time: SIP.raise + (t / BITE.raise) * (SIP.atMouth - SIP.raise), chew: 0 };
+  t -= BITE.raise;
+  if (t < BITE.hold) return { time: SIP.atMouth + (t / BITE.hold) * 0.3, chew: 0 };
+  t -= BITE.hold;
+  if (t < BITE.lower) return { time: SIP.lower + (t / BITE.lower) * (SIP.down - SIP.lower), chew: t / BITE.lower };
+  t -= BITE.lower;
+  // Hand stays down while chewing, easing off just before the next bite.
+  return { time: SIP.down, chew: Math.min(1, (BITE.chew - t) / 0.3) };
+}
 const tmpQuat = new THREE.Quaternion();
 const tmpQuat2 = new THREE.Quaternion();
 const tmpVec = new THREE.Vector3();
@@ -46,6 +66,9 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     type: mixer.clipAction(clips.type),
     stand: mixer.clipAction(standClip), // frozen standing pose under the coded walk
   };
+  const eatClip = clips.drink.clone();
+  eatClip.name = 'eat';
+  actions.eat = mixer.clipAction(eatClip); // time set by hand, one bite at a time
   if (clips.walk) actions.walk = mixer.clipAction(clips.walk);
   // Speed the recorded walk was captured at, in metres per second (0 if it was
   // recorded on the spot).
@@ -58,7 +81,8 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
   }
   actions.idle.time = Math.random() * clips.idle.duration;
   actions.drink.time = Math.random() * clips.drink.duration;
-  for (const name of ['sit', 'type', 'stand']) actions[name].paused = true;
+  for (const name of ['sit', 'type', 'stand', 'eat']) actions[name].paused = true;
+  actions.eat.time = SIP.down;
   actions.sit.time = clips.sit.duration;
   actions.type.time = clips.type.duration;
 
@@ -149,10 +173,21 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     bones[name].quaternion.multiply(tmpQuat2.setFromAxisAngle(axes[name], angle));
   };
 
-  // Mug held while drinking.
+  // Held in the left hand: a mug while drinking, a sandwich while eating.
   const mug = cylinder(0.035, 0.03, 0.09, mat(0xf7f5ef), 0, 0, 0);
+  const food = new THREE.Group();
+  food.add(box(0.1, 0.018, 0.08, mat(0xd9a45b), 0, 0.02, 0)); // bread
+  food.add(box(0.105, 0.014, 0.085, mat(0x6fae4f), 0, 0, 0)); // filling
+  food.add(box(0.1, 0.018, 0.08, mat(0xd9a45b), 0, -0.02, 0)); // bread
   mug.visible = false;
-  group.add(mug);
+  food.visible = false;
+  group.add(mug, food);
+
+  // Chewing nods the head a little, from the standing pose.
+  const chewAxes = sidewaysAxes('idle', ['Head']);
+  for (const [name, action] of Object.entries(actions)) action.setEffectiveWeight(weights[name]);
+  const holdPoint = new THREE.Vector3();
+  let biteClock = Math.random() * BITE_TIME;
 
   let walkAmount = 0;
   let typeAmount = 0; // 0 hands resting, 1 typing
@@ -166,7 +201,8 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     if (state.walking) current = actions.walk ? 'walk' : 'stand';
     else if (state.slide) current = 'sit';
     else if (state.seated) current = state.action === 'work' ? 'type' : 'sit';
-    else if (state.action === 'eat' || state.action === 'drink') current = 'drink';
+    else if (state.action === 'eat') current = 'eat';
+    else if (state.action === 'drink') current = 'drink';
 
     const ease = Math.min(1, dt * BLEND_SPEED);
     for (const [name, action] of Object.entries(actions)) {
@@ -181,6 +217,11 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     } else if (state.seated) {
       actions.sit.time = clips.sit.duration;
     }
+
+    // Eating: bite after bite, each one a short reach to the mouth.
+    biteClock = (biteClock + dt) % BITE_TIME;
+    const bite = biteAt(biteClock);
+    actions.eat.time = bite.time;
 
     // Move the hands onto the keyboard each time work starts.
     const working = current === 'type';
@@ -253,14 +294,24 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     holder.position.y = seatedAmount * (SEAT_LIFT + (state.lift ?? 0));
     holder.position.z = seatedAmount * SEAT_BACK;
 
-    // Keep the mug in the right hand while drinking.
+    // Chew between bites.
+    if (weights.eat > 0.5) {
+      turn(chewAxes, 'Head', (0.5 + 0.5 * Math.sin(clock * 11)) * 0.045 * bite.chew);
+    }
+
+    // Keep the mug or the sandwich in the left hand.
     mug.visible = weights.drink > 0.5;
-    if (mug.visible) {
+    food.visible = weights.eat > 0.5;
+    if (mug.visible || food.visible) {
       group.updateMatrixWorld(true);
-      bones.RightHand.getWorldPosition(tmpVec);
-      group.worldToLocal(tmpVec);
-      mug.position.copy(tmpVec);
-      mug.position.y += 0.02;
+      // Between the wrist and the knuckles, which is roughly the palm.
+      bones.LeftHand.getWorldPosition(holdPoint);
+      (bones.LeftHandMiddle1 ?? bones.LeftHand).getWorldPosition(tmpVec);
+      holdPoint.lerp(tmpVec, 0.6);
+      group.worldToLocal(holdPoint);
+      holdPoint.y += 0.03;
+      mug.position.copy(holdPoint);
+      food.position.copy(holdPoint);
     }
   }
 
@@ -272,5 +323,8 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     return tmpVec.y + 0.38;
   }
 
-  return { group, update, tagY, slideTime: 1.3 };
+  // For the test page: the running actions, to read clip times.
+  const debugActions = actions;
+
+  return { group, update, tagY, slideTime: 1.3, debugActions };
 }
