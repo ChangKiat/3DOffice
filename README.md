@@ -63,7 +63,7 @@ The static site is written to `dist/`.
 
 People are drawn with Mixamo characters when these files exist in `public/models/` (they are not stored in git):
 
-- Characters: `ch17.glb` (workers), `ch33.glb` (boss), `kachujin.glb` (receptionist)
+- Characters: `ch17.glb` (Azmir and Chee Chong), `ch01.glb` (Rong Zhao), `ch33.glb` (boss), `kachujin.glb` (receptionist)
 - Clips: `idle.glb`, `drinking.glb`, `stand-to-sit.glb`, `sit-to-type.glb`
 
 They are converted from Mixamo FBX downloads with FBX2glTF, and the character textures are shrunk with `gltf-transform optimize --texture-size 1024 --texture-compress webp`. If the files are missing, the page falls back to simple box figures.

@@ -16,6 +16,7 @@ const canonical = (name) => name.replace(/^mixamorig\d*/, 'mixamorig');
 // `tintMesh` is the mesh recoloured per person, `height` is in metres.
 const CHARACTERS = {
   worker: { file: 'ch17', height: 1.76, hide: ['Helmet'], tintMesh: 'Shirt' },
+  casual: { file: 'ch01', height: 1.76 },
   boss: { file: 'ch33', height: 1.78 },
   receptionist: { file: 'kachujin', height: 1.68 },
 };
