@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Model viewer</title>
+    <style>
+      body { margin: 0; background: #556; overflow: hidden; }
+      canvas { display: block; width: 100vw; height: 100vh; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <script type="module">
+      // Dev-only page for checking one character in one state next to a desk and chair.
+      // viewer.html?kind=boss&state=work&cam=side
+      // state: work | rest | idle | drink | walk | sit (use &p=0..1 for sit progress)
+      import * as THREE from 'three';
+      import { loadCharacterAssets } from '/src/models.js';
+      import { createModelBody } from '/src/bodyModel.js';
+      import { createDesk, createChair, createMonitor, createSofa } from '/src/furniture.js';
+
+      const q = new URLSearchParams(location.search);
+      const canvas = document.getElementById('c');
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x9aa3ad);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 2.2));
+      const light = new THREE.DirectionalLight(0xffffff, 2);
+      light.position.set(2, 4, 3);
+      scene.add(light);
+      scene.add(new THREE.GridHelper(4, 8));
+
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
+      const cams = { front: [0, 1.2, -4.2], side: [4.2, 1.2, 0], back: [0, 1.2, 4.2], three: [3, 1.8, 3], top: [0.01, 5, 0] };
+      camera.position.set(...(cams[q.get('cam')] ?? cams.side));
+      camera.lookAt(0, 0.85, 0);
+
+      const stateName = q.get('state') ?? 'idle';
+      const seat = q.get('seat') ?? 'chair';
+      const seated = ['work', 'rest', 'sit'].includes(stateName);
+      if (seated || q.get('furniture')) {
+        if (seat === 'sofa') {
+          // Same offsets as the sofa spots in routes.js: seat is 0.12 in front of the sofa centre.
+          const sofa = createSofa(2.2);
+          sofa.rotation.y = Math.PI;
+          sofa.position.set(0.55, 0, 0.12);
+          scene.add(sofa);
+        } else {
+          scene.add(createChair());
+          const desk = createDesk();
+          desk.position.z = -0.8;
+          const monitor = createMonitor().group;
+          monitor.position.z = -0.8;
+          scene.add(desk, monitor);
+        }
+      }
+
+      const assets = await loadCharacterAssets();
+      const body = createModelBody(assets, q.get('kind') ?? 'worker', { tint: [0.7, 1.3, 3.2] });
+      scene.add(body.group);
+
+      const state = {
+        walking: stateName === 'walk',
+        walkDistance: 0,
+        seated,
+        lift: seat === 'sofa' ? 0.05 : 0,
+        action: stateName,
+        slide: stateName === 'sit' ? { sit: true, progress: Number(q.get('p') ?? 0.5) } : null,
+      };
+      window.dbg = { THREE, body, state, scene };
+
+      let time = 0;
+      const clock = new THREE.Clock();
+      renderer.setAnimationLoop(() => {
+        const w = innerWidth;
+        const h = innerHeight;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        const dt = Math.min(clock.getDelta(), 0.1);
+        time += dt;
+        if (state.walking) state.walkDistance = q.get('d') !== null ? Number(q.get('d')) : state.walkDistance + 1.3 * dt;
+        body.update(dt, state, time);
+        renderer.render(scene, camera);
+      });
+    </script>
+  </body>
+</html>

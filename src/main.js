@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOffice } from './office.js';
 import { createPerson } from './person.js';
+import { createBoxBody } from './bodyBox.js';
+import { createModelBody } from './bodyModel.js';
+import { loadCharacterAssets } from './models.js';
 import { createSpots, findPath, WORK_DESKS, BOSS_SEAT, RECEPTION_SEAT } from './routes.js';
 
 const canvas = document.getElementById('scene');
@@ -9,7 +12,7 @@ const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1b2330);
@@ -48,14 +51,44 @@ const office = createOffice();
 scene.add(office.group);
 
 // The team. `firstBreak` staggers when each person first gets up, in seconds.
+// `model` and `tint` are used with the character models in public/models; the
+// colours after them are for the box figures shown when the models are missing.
 const team = [
-  { name: 'Rong Zhao', desk: WORK_DESKS[0], shirt: 0x3f7fd1, hair: 0x1d1a18, skin: 0xe8b796, firstBreak: 3 },
-  { name: 'Azmir', desk: WORK_DESKS[1], shirt: 0xd98a3d, hair: 0x1d1a18, skin: 0xc68e6a, firstBreak: 14 },
-  { name: 'Chee Chong', desk: WORK_DESKS[2], shirt: 0x4f9d69, hair: 0x3a2a1e, skin: 0xd9a47c, firstBreak: 9 },
+  {
+    name: 'Rong Zhao',
+    desk: WORK_DESKS[0],
+    model: 'worker',
+    tint: [0.7, 1.3, 3.2],
+    shirt: 0x3f7fd1,
+    hair: 0x1d1a18,
+    skin: 0xe8b796,
+    firstBreak: 3,
+  },
+  {
+    name: 'Azmir',
+    desk: WORK_DESKS[1],
+    model: 'worker',
+    tint: [3.2, 1.6, 0.6],
+    shirt: 0xd98a3d,
+    hair: 0x1d1a18,
+    skin: 0xc68e6a,
+    firstBreak: 14,
+  },
+  {
+    name: 'Chee Chong',
+    desk: WORK_DESKS[2],
+    model: 'worker',
+    tint: [0.8, 2.6, 1.2],
+    shirt: 0x4f9d69,
+    hair: 0x3a2a1e,
+    skin: 0xd9a47c,
+    firstBreak: 9,
+  },
   {
     name: 'Chang Kiat',
     boss: true,
     desk: BOSS_SEAT,
+    model: 'boss',
     shirt: 0x2b2f36,
     tie: 0xc0392b,
     hair: 0x1d1a18,
@@ -65,6 +98,7 @@ const team = [
   {
     name: 'Tracy',
     desk: RECEPTION_SEAT,
+    model: 'receptionist',
     shirt: 0xd9609a,
     hair: 0x3a2a1e,
     longHair: true,
@@ -75,11 +109,25 @@ const team = [
 ];
 
 const spots = createSpots();
-const people = team.map((member) => {
-  const person = createPerson({ ...member, spots, findPath });
-  scene.add(person.group);
-  return person;
-});
+const people = [];
+if (import.meta.env.DEV) window.office = { people };
+
+// The office shows straight away; people appear once their models have loaded.
+loadCharacterAssets()
+  .catch((error) => {
+    console.warn('Character models could not be loaded; using box figures instead.', error);
+    return null;
+  })
+  .then((assets) => {
+    for (const member of team) {
+      const body = assets
+        ? createModelBody(assets, member.model, { tint: member.tint })
+        : createBoxBody(member);
+      const person = createPerson({ ...member, body, spots, findPath });
+      scene.add(person.group);
+      people.push(person);
+    }
+  });
 
 function resize() {
   const width = window.innerWidth;
