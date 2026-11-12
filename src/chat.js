@@ -4,7 +4,9 @@
 const STAFF = ['Tracy', 'Rong Zhao', 'Azmir', 'Chee Chong'];
 
 // `getActivity(name)` returns what that person is doing in the office right now.
-export function setupChat({ getActivity }) {
+// `onActive(name)` is called whenever the conversation with that person is in use,
+// and `onLeave()` when the boss stops talking to them.
+export function setupChat({ getActivity, onActive, onLeave }) {
   const panel = document.getElementById('chat');
   const toggle = document.getElementById('chat-toggle');
   const select = document.getElementById('chat-staff');
@@ -49,6 +51,7 @@ export function setupChat({ getActivity }) {
     const messages = conversations[staff];
     if (messages.length === 0) log.replaceChildren();
 
+    onActive(staff);
     messages.push({ role: 'user', content: text });
     addBubble('me', text);
     const bubble = addBubble('them pending', '…');
@@ -80,6 +83,7 @@ export function setupChat({ getActivity }) {
 
       if (reply.trim() === '') throw new Error('No reply came back.');
       messages.push({ role: 'assistant', content: reply });
+      onActive(staff); // keep them here while the boss reads the reply
     } catch (error) {
       // Take the question back out so the conversation still alternates.
       messages.pop();
@@ -99,13 +103,17 @@ export function setupChat({ getActivity }) {
     ask(text);
   });
 
-  select.addEventListener('change', render);
+  select.addEventListener('change', () => {
+    onLeave();
+    render();
+  });
 
   toggle.addEventListener('click', () => {
     const collapsed = panel.classList.toggle('collapsed');
     toggle.textContent = collapsed ? 'Chat' : '–';
     toggle.setAttribute('aria-label', collapsed ? 'Open chat' : 'Minimise chat');
-    if (!collapsed) input.focus();
+    if (collapsed) onLeave();
+    else input.focus();
   });
 
   render();

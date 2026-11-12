@@ -14,6 +14,7 @@ import {
   BOSS_SEAT,
   RECEPTION_SEAT,
   MEETING_CHAIRS,
+  BOSS_VISITOR,
 } from './routes.js';
 
 const canvas = document.getElementById('scene');
@@ -151,16 +152,52 @@ const meetingButton = document.getElementById('meeting');
 let meetingOn = false;
 meetingButton.addEventListener('click', () => {
   meetingOn = !meetingOn;
+  talkingWith = null; // a meeting takes over from a face-to-face chat
+  clearTimeout(talkTimer);
   for (const person of people) {
-    if (meetingOn) person.callMeeting(person.meetingChair);
-    else person.endMeeting();
+    if (meetingOn) person.holdAt(person.meetingChair);
+    else person.release();
   }
   meetingButton.textContent = meetingOn ? 'End meeting' : 'Call meeting';
   meetingButton.classList.toggle('active', meetingOn);
 });
 
+// Chatting with someone brings them to the boss's room, where they stand in
+// front of the desk facing the boss. They go back to work when the chat moves
+// to someone else, is minimised, or has been quiet for a while.
+const TALK_IDLE_MS = 45_000;
+let talkingWith = null;
+let talkTimer = null;
+const findPerson = (name) => people.find((person) => person.name === name);
+const findBoss = () => people.find((person) => person.boss);
+
+function endTalk() {
+  clearTimeout(talkTimer);
+  if (talkingWith === null) return;
+  findPerson(talkingWith)?.release();
+  findBoss()?.release();
+  talkingWith = null;
+}
+
+function startTalk(name) {
+  if (meetingOn) return; // everyone is already together in the meeting room
+  clearTimeout(talkTimer);
+  talkTimer = setTimeout(endTalk, TALK_IDLE_MS);
+  if (talkingWith === name) return;
+  if (talkingWith !== null) findPerson(talkingWith)?.release();
+
+  const staff = findPerson(name);
+  const boss = findBoss();
+  if (!staff || !boss) return;
+  talkingWith = name;
+  staff.holdAt(BOSS_VISITOR);
+  boss.holdAt(boss.desk, 'talk');
+}
+
 setupChat({
-  getActivity: (name) => people.find((person) => person.name === name)?.activity() ?? 'at work in the office',
+  getActivity: (name) => findPerson(name)?.activity() ?? 'at work in the office',
+  onActive: startTalk,
+  onLeave: endTalk,
 });
 
 function resize() {

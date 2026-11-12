@@ -42,7 +42,8 @@ const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const between = (min, max) => min + Math.random() * (max - min);
 
 // A person who works at `desk`, takes breaks at one of the shared `spots`,
-// walks back, and can be called to a meeting at any moment.
+// walks back, and can be called away at any moment (to a meeting, or to talk
+// with the boss).
 //
 // `body` is what the person looks like: either a character model
 // (bodyModel.js) or a box figure (bodyBox.js). This file only decides where
@@ -74,7 +75,8 @@ export function createPerson({
   //   { walk, x, z, node }            walk to a walkway node
   //   { walk, x, z, place, index }    walk to one of a place's approach points
   //   { slide, x, z, sit, place }     get into or out of a seat
-  //   { act, left, place }            stay at a place for `left` seconds
+  //   { act, left, place, action }    stay at a place for `left` seconds; `action`
+  //                                   replaces the place's usual action if given
   const queue = [];
   const state = {
     walking: false,
@@ -86,13 +88,13 @@ export function createPerson({
   };
   let here = desk; // the place the person is at, or was at last
   let reserved = null; // break spot held by this person
-  let inMeeting = false;
+  let held = false; // called away: stays put until released
   let yaw = desk.face;
   let targetYaw = desk.face;
   let clock = Math.random() * 10;
   let tagY = null;
 
-  const actStep = (place, seconds) => ({ act: true, place, left: seconds });
+  const actStep = (place, seconds, action) => ({ act: true, place, left: seconds, action });
   const approachStep = (place, index) => ({
     walk: true,
     x: place.approach[index][0],
@@ -141,12 +143,21 @@ export function createPerson({
   }
 
   // Drop whatever was planned and head for `place`, staying there for `seconds`.
-  function goTo(place, seconds) {
-    const { keep, start } = leaveSteps();
+  // `action` replaces the place's usual action while there.
+  function goTo(place, seconds, action) {
     if (reserved && reserved !== place) {
       reserved.busy = false;
       reserved = null;
     }
+
+    // Already there: stay put instead of getting up and sitting down again.
+    if (queue[0]?.act && queue[0].place === place) {
+      queue.length = 0;
+      queue.push(actStep(place, seconds, action));
+      return;
+    }
+
+    const { keep, start } = leaveSteps();
 
     queue.length = 0;
     queue.push(...keep);
@@ -156,7 +167,7 @@ export function createPerson({
     }
     place.approach.forEach((_, index) => queue.push(approachStep(place, index)));
     if (place.seat) queue.push({ slide: true, x: place.seat[0], z: place.seat[1], sit: true, place });
-    queue.push(actStep(place, seconds));
+    queue.push(actStep(place, seconds, action));
   }
 
   const goToDesk = () => goTo(desk, between(workTime[0], workTime[1]));
@@ -173,14 +184,16 @@ export function createPerson({
     goTo(spot, between(7, 11));
   }
 
-  function callMeeting(chair) {
-    inMeeting = true;
-    goTo(chair, Infinity);
+  // Go to `place` and stay there until released.
+  function holdAt(place, action) {
+    held = true;
+    goTo(place, Infinity, action);
   }
 
-  function endMeeting() {
-    if (!inMeeting) return;
-    inMeeting = false;
+  // Back to the normal routine, starting with some work at the desk.
+  function release() {
+    if (!held) return;
+    held = false;
     goToDesk();
   }
 
@@ -234,7 +247,7 @@ export function createPerson({
       targetYaw = step.place.face;
       state.seated = Boolean(step.place.seat);
       state.lift = step.place.lift ?? 0;
-      state.action = step.place.action;
+      state.action = step.action ?? step.place.action;
       step.left -= dt;
       if (step.left <= 0) {
         if (reserved === step.place) {
@@ -264,7 +277,8 @@ export function createPerson({
 
   // What the person is doing right now, in words (used by the chat).
   function activity() {
-    const where = queue[queue.length - 1]?.place;
+    const last = queue[queue.length - 1];
+    const heading = last?.action ?? last?.place?.action;
     switch (state.action) {
       case 'work':
         return 'working at your desk';
@@ -278,9 +292,12 @@ export function createPerson({
         return 'looking at the whiteboard in the meeting room';
       case 'meeting':
         return 'sitting in a meeting in the meeting room';
+      case 'talk':
+        return "standing in the boss's room, talking with him face to face";
       default:
-        if (where?.action === 'meeting') return 'on your way to a meeting in the meeting room';
-        if (where?.action === 'work') return 'walking back to your desk';
+        if (heading === 'meeting') return 'on your way to a meeting in the meeting room';
+        if (heading === 'talk') return "walking over to the boss's room to talk with him face to face";
+        if (heading === 'work') return 'walking back to your desk';
         return 'walking through the office on a short break';
     }
   }
@@ -292,10 +309,10 @@ export function createPerson({
     action: state.action,
     seated: state.seated,
     steps: queue.map((step) => {
-      if (step.act) return `${step.place.action} at ${step.place.name}`;
+      if (step.act) return `${step.action ?? step.place.action} at ${step.place.name}`;
       return `${step.walk ? 'walk' : 'slide'} ${step.x},${step.z}`;
     }),
   });
 
-  return { name, group, update, callMeeting, endMeeting, activity, debug };
+  return { name, boss, desk, group, update, holdAt, release, activity, debug };
 }

@@ -127,6 +127,16 @@ export const RECEPTION_SEAT = {
   face: Math.PI,
 };
 
+// Where someone stands to talk with the boss: in front of the boss's desk,
+// facing the boss, who faces the door.
+export const BOSS_VISITOR = {
+  name: 'in front of the boss desk',
+  action: 'talk',
+  node: 'bossDoorIn',
+  approach: [[BOSS_DESK.x, BOSS_DESK.z + 1.1]],
+  face: 0,
+};
+
 // The six meeting room chairs (see createMeetingRoom in office.js). People step
 // in from the left of each chair. The far row is reached by walking round the
 // left end of the table.

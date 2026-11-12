@@ -34,6 +34,8 @@ To turn it on:
 2. Put your Claude API key after `ANTHROPIC_API_KEY=`.
 3. Restart `npm run dev`.
 
+When you message someone they walk to the boss's room and stand in front of the desk, face to face with the boss. They go back to work when you switch to someone else, minimise the chat, or 45 seconds pass without a message.
+
 The staff answer in character and know what they are doing in the office at that moment. They are not connected to the tracking application yet, so they cannot look up real data. Their roles are placeholders set in `server/chat.js`.
 
 The chat only works while the Vite server is running (`npm run dev` or `npm run preview`); the static files in `dist/` alone have no chat endpoint.
