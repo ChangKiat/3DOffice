@@ -6,8 +6,9 @@ import { mat, cylinder } from './helpers.js';
 // Standing idle, drinking and sitting down come from recorded clips. Walking
 // uses a recorded clip too when public/models/walk.glb exists; otherwise it is
 // layered on in code by swinging the legs and arms from the standing pose.
-// Typing has no recorded loop, so the forearms and hands are wiggled in code
-// on top of the seated typing pose.
+// Typing has no recorded loop, so it is animated in code on top of the seated
+// typing pose: fingers tap, wrists bob, the hands drift across the keyboard and
+// the head glances down at the keys now and then.
 
 const SEAT_LIFT = 0.0; // raises a seated character so it rests on an office chair
 const SEAT_BACK = 0.0; // moves a seated character back (+) or forward (-) on the seat
@@ -17,6 +18,7 @@ const MIN_WALK_RATE = 0.6; // slowest and fastest a recorded walk may be played
 const MAX_WALK_RATE = 1.7;
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const tmpQuat = new THREE.Quaternion();
 const tmpQuat2 = new THREE.Quaternion();
 const tmpVec = new THREE.Vector3();
@@ -60,10 +62,10 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
   actions.sit.time = clips.sit.duration;
   actions.type.time = clips.type.duration;
 
-  // For the coded movements each bone needs to turn about the character's
-  // left-right axis. Work out what that axis is in each bone's own frame, in
-  // the standing pose and in the seated typing pose.
-  function sidewaysAxes(actionName, names) {
+  // For the coded movements each bone needs to turn about one of the
+  // character's own axes (left-right by default, or straight up). Work out what
+  // that axis is in each bone's own frame, in the pose of the given action.
+  function sidewaysAxes(actionName, names, axis = X_AXIS) {
     for (const [name, action] of Object.entries(actions)) {
       action.setEffectiveWeight(name === actionName ? 1 : 0);
     }
@@ -73,7 +75,31 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     const axes = {};
     for (const name of names) {
       const inRoot = rootInverse.clone().multiply(bones[name].getWorldQuaternion(tmpQuat));
-      axes[name] = X_AXIS.clone().applyQuaternion(inRoot.invert());
+      axes[name] = axis.clone().applyQuaternion(inRoot.invert());
+    }
+    return axes;
+  }
+  // The axis that bends a bone straight downwards (a finger pressing a key, a
+  // wrist dipping), whichever way the bone happens to point in that pose.
+  function pressAxes(actionName, names) {
+    for (const [name, action] of Object.entries(actions)) {
+      action.setEffectiveWeight(name === actionName ? 1 : 0);
+    }
+    mixer.update(0);
+    root.updateMatrixWorld(true);
+    const rootInverse = root.getWorldQuaternion(new THREE.Quaternion()).invert();
+    const axes = {};
+    for (const name of names) {
+      const bone = bones[name];
+      const next = bone.children.find((child) => child.isBone && /Middle|Hand$/.test(child.name))
+        ?? bone.children.find((child) => child.isBone);
+      // Direction the bone points, flattened onto the floor, in the root's frame.
+      const from = root.worldToLocal(bone.getWorldPosition(new THREE.Vector3()));
+      const to = root.worldToLocal(next.getWorldPosition(new THREE.Vector3()));
+      const direction = to.sub(from).setY(0).normalize();
+      const axis = new THREE.Vector3().crossVectors(Y_AXIS, direction).normalize();
+      const inRoot = rootInverse.clone().multiply(bone.getWorldQuaternion(tmpQuat));
+      axes[name] = axis.applyQuaternion(inRoot.invert());
     }
     return axes;
   }
@@ -81,9 +107,27 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg',
     'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm',
   ];
-  const typeBones = ['LeftForeArm', 'RightForeArm', 'LeftHand', 'RightHand'];
+  // Fingers that tap while typing: the first joint of each, where the model has one.
+  // Each gets its own rhythm so the hands never move in step.
+  const fingers = [];
+  for (const side of ['Left', 'Right']) {
+    ['Index', 'Middle', 'Ring', 'Pinky', 'Thumb'].forEach((finger, i) => {
+      const name = `${side}Hand${finger}1`;
+      if (!bones[name]) return;
+      fingers.push({ name, rate: 8.5 + i * 1.7 + (side === 'Left' ? 0 : 0.9), phase: Math.random() * 6.28 });
+    });
+  }
+  const typeBones = [
+    'LeftForeArm', 'RightForeArm', 'LeftHand', 'RightHand', 'Head',
+    ...fingers.map((finger) => finger.name),
+  ];
   const walkAxes = sidewaysAxes('stand', walkBones);
-  const typeAxes = sidewaysAxes('type', typeBones);
+  const typeAxes = {
+    ...pressAxes('type', typeBones.filter((name) => name !== 'Head')),
+    ...sidewaysAxes('type', ['Head']),
+  };
+  const typeUpAxes = sidewaysAxes('type', ['LeftForeArm', 'RightForeArm', 'Head'], Y_AXIS);
+  const rhythm = Math.random() * 20; // so people at neighbouring desks are out of step
   for (const [name, action] of Object.entries(actions)) action.setEffectiveWeight(weights[name]);
 
   // The coded movements are added on top of what the mixer wrote. The mixer
@@ -111,6 +155,7 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
   group.add(mug);
 
   let walkAmount = 0;
+  let typeAmount = 0; // 0 hands resting, 1 typing
   let typeTime = clips.type.duration;
   let seatedAmount = 1;
   let wasWorking = false;
@@ -173,13 +218,32 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
       bones.Hips.position.y += (Math.abs(Math.cos(p)) - 0.5) * 0.03 * w;
     }
 
-    // Coded typing on top of the seated pose: short bursts with pauses.
+    // Coded typing on top of the seated pose, in bursts with short pauses.
     if (weights.type > 0.5 && typeTime >= clips.type.duration) {
-      const burst = Math.sin(clock * 0.7) > -0.6 ? 1 : 0.15;
-      turn(typeAxes, 'LeftForeArm', Math.sin(clock * 13) * 0.03 * burst);
-      turn(typeAxes, 'RightForeArm', Math.sin(clock * 13 + 2.1) * 0.03 * burst);
-      turn(typeAxes, 'LeftHand', Math.sin(clock * 13 + 1) * 0.1 * burst);
-      turn(typeAxes, 'RightHand', Math.sin(clock * 13 + 3.1) * 0.1 * burst);
+      const t = clock + rhythm;
+      const typingNow = Math.sin(t * 0.55) > -0.7;
+      typeAmount += ((typingNow ? 1 : 0) - typeAmount) * Math.min(1, dt * 5);
+      const amount = typeAmount;
+
+      [['Left', 0], ['Right', 1.9]].forEach(([side, offset]) => {
+        // Wrists bob with the keystrokes and the hands drift across the keys.
+        const tap = Math.sin(t * 10.5 + offset);
+        turn(typeAxes, `${side}Hand`, (0.04 + tap * 0.09) * amount);
+        turn(typeAxes, `${side}ForeArm`, tap * 0.025 * amount);
+        turn(typeUpAxes, `${side}ForeArm`, Math.sin(t * 1.25 + offset * 2) * 0.11 * amount);
+      });
+
+      // Fingers stay slightly curled and jab down one after another.
+      for (const finger of fingers) {
+        const press = Math.max(0, Math.sin(t * finger.rate + finger.phase)) ** 2;
+        turn(typeAxes, finger.name, 0.12 + press * 0.5 * amount);
+      }
+
+      // Eyes on the screen, with a look down at the keyboard now and then and
+      // a slow drift from side to side while reading.
+      const glance = Math.max(0, Math.sin(t * 0.4)) ** 8;
+      turn(typeAxes, 'Head', glance * 0.22 + Math.sin(t * 2.1) * 0.01 * amount);
+      turn(typeUpAxes, 'Head', Math.sin(t * 0.33) * 0.07);
     }
 
     // Settle onto the seat.
