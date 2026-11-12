@@ -1,9 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { betaTool } from '@anthropic-ai/sdk/helpers/beta/json-schema';
+import { DATA_GUIDE, dataConfigured, runReadOnlyQuery } from './data.js';
 
 // POST /api/chat — lets the boss talk to a member of staff.
 //
 // Runs inside the Vite dev/preview server (see vite.config.js) so the API key
-// stays on the server and never reaches the browser.
+// and the database address stay on the server and never reach the browser.
 //
 // Request body:  { staff: "Tracy", activity: "working at your desk", messages: [{ role, content }] }
 // Response:      the reply as plain text, streamed as it is written.
@@ -12,24 +14,72 @@ const MODEL = 'claude-opus-5-5';
 const MAX_MESSAGES = 40;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_BODY_BYTES = 200_000;
+const MAX_TOOL_ROUNDS = 8;
 
-// Who the staff are. The roles are placeholders — edit them to match the real team.
+// Who the staff are and what each looks after. Everyone can read all the data;
+// the speciality only shapes how they answer. Edit these to suit.
 const STAFF = {
-  'Rong Zhao': 'a software developer who builds and maintains the company\'s tracking application',
-  Azmir: 'a data analyst who prepares reports from the company\'s tracking application',
-  'Chee Chong': 'an operations executive who keeps day-to-day work and schedules on track',
-  Tracy: 'the receptionist, who greets visitors, answers calls and manages the meeting room bookings',
+  Azmir: {
+    role: 'the finance analyst',
+    focus: 'spending, income, budgets, recurring bills, loans, investments and tax relief',
+  },
+  'Rong Zhao': {
+    role: 'the health and fitness analyst',
+    focus: 'workouts, meals and macros, body weight and daily steps',
+  },
+  'Chee Chong': {
+    role: 'the operations executive',
+    focus: 'upcoming recurring bills and due dates, trips and their costs, and car servicing',
+  },
+  Tracy: {
+    role: 'the receptionist and personal assistant',
+    focus: 'quick look-ups across everything and short summaries of the day or week',
+  },
 };
 
-function systemPrompt(name, activity) {
-  return `You are ${name}, ${STAFF[name]}. You work in a small office run by Chang Kiat, who is your boss and is the person talking to you now. When he starts a conversation you walk over to his room and talk face to face.
-
-Reply as ${name} would to their boss: friendly, direct and brief. Most replies should be one to four sentences; go longer only when he asks for detail. Your reply is shown in a small chat panel that displays plain text, so write plain sentences without markdown, headings or bullet symbols.
-
-Right now you are ${activity}. Mention it only if it is relevant or he asks what you are doing.
-
-You do not yet have a connection to the tracking application or any company records, so you cannot look up real figures, entries or schedules. If he asks for something that would need that data, say plainly that you can't check it from here yet instead of making up numbers or records. General questions, advice, explanations and drafting you can help with normally.`;
+function todayInKualaLumpur() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    dateStyle: 'full',
+  }).format(new Date());
 }
+
+function isoDateInKualaLumpur() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date());
+}
+
+function personaPrompt(name, activity, hasData) {
+  const { role, focus } = STAFF[name];
+  const dataPart = hasData
+    ? `You can read his tracking application's records with the query_tracking_data tool. Your speciality is ${focus}, and you answer those questions with the most care, but you can look up anything he asks. When a question is far outside your area you may add which colleague knows it best (Azmir for money, Rong Zhao for health, Chee Chong for bills, trips and the car, Tracy for quick summaries), after you have answered it.`
+    : `You look after ${focus}, but the connection to the tracking application's records is not set up on this computer, so you cannot look anything up right now. If he asks for figures or records, say plainly that you can't reach the data yet instead of making anything up.`;
+
+  return `You are ${name}, ${role} in a small office run by Chang Kiat. He is your boss and is the person talking to you now. When he starts a conversation you walk over to his room and talk face to face.
+
+${dataPart}
+
+Reply as ${name} would to their boss: friendly, direct and brief. Lead with the answer. Most replies should be one to four sentences; go longer only when he asks for detail or the answer is a short list of figures. Your reply is shown in a small chat panel that displays plain text, so write plain sentences without markdown, headings, tables or bullet symbols. For several figures, put each on its own line as "Label: RM 123.45".
+
+Today is ${todayInKualaLumpur()} (${isoDateInKualaLumpur()}). Right now you are ${activity}. Mention that only if it is relevant or he asks what you are doing.`;
+}
+
+const queryTool = betaTool({
+  name: 'query_tracking_data',
+  description:
+    "Run one read-only SQL SELECT against the tracking application's Postgres database and get the rows back as JSON. Use it whenever the answer depends on his recorded expenses, income, budgets, bills, loans, investments, trips, tax relief, car servicing, workouts, meals, weight or steps. The tables and columns are described in the system prompt. Only a single SELECT (or WITH ... SELECT) statement is accepted, no semicolons, and at most 200 rows are returned, so aggregate in SQL where you can.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      sql: {
+        type: 'string',
+        description: 'A single PostgreSQL SELECT statement, for example: select category, sum(amount) from expenses where date >= \'2026-11-01\' group by category order by 2 desc',
+      },
+    },
+    required: ['sql'],
+    additionalProperties: false,
+  },
+  run: async (input) => runReadOnlyQuery(input?.sql),
+});
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
@@ -98,45 +148,71 @@ async function handleChat(req, res) {
   }
 
   const activity = typeof body.activity === 'string' ? body.activity.slice(0, 200) : 'at work in the office';
+  const hasData = dataConfigured();
+
+  let closed = false;
+  req.on('close', () => {
+    closed = true;
+  });
+
+  const startBody = () => {
+    if (res.headersSent) return;
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+  };
 
   try {
     client ??= new Anthropic();
 
-    // If a safety classifier declines the request, `fallbacks` lets the API
-    // retry it on another model inside the same call.
-    const stream = client.beta.messages.stream({
+    // The data guide is identical for everyone, so it goes first and is cached;
+    // the persona (who, what they are doing, today's date) follows it.
+    const system = hasData
+      ? [
+          { type: 'text', text: DATA_GUIDE, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: personaPrompt(body.staff, activity, true) },
+        ]
+      : personaPrompt(body.staff, activity, false);
+
+    // The runner calls the model, runs any query it asks for, feeds the rows
+    // back and repeats until the model answers. If a safety classifier declines
+    // the request, `fallbacks` lets the API retry it on another model.
+    const runner = client.beta.messages.toolRunner({
       model: MODEL,
       max_tokens: 16000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' }, // short conversational replies
-      system: systemPrompt(body.staff, activity),
+      system,
+      tools: hasData ? [queryTool] : [],
       messages: body.messages.map(({ role, content }) => ({ role, content })),
+      stream: true,
+      max_iterations: MAX_TOOL_ROUNDS,
     });
 
     let wroteText = false;
-    stream.on('text', (delta) => {
-      if (!res.headersSent) {
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache');
+    let refused = false;
+    for await (const messageStream of runner) {
+      let startedThisRound = false;
+      for await (const event of messageStream) {
+        if (event.type !== 'content_block_delta' || event.delta.type !== 'text_delta') continue;
+        if (closed) continue;
+        startBody();
+        // Separate anything said before a look-up from what follows it.
+        if (!startedThisRound && wroteText) res.write('\n\n');
+        startedThisRound = true;
+        wroteText = true;
+        res.write(event.delta.text);
       }
-      wroteText = true;
-      res.write(delta);
-    });
-    req.on('close', () => {
-      if (!res.writableEnded) stream.abort();
-    });
+      const message = await messageStream.finalMessage();
+      if (message.stop_reason === 'refusal') {
+        refused = true;
+        break;
+      }
+    }
 
-    const message = await stream.finalMessage();
-    if (!wroteText) {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.write(
-        message.stop_reason === 'refusal'
-          ? "Sorry boss, that's not something I can help with."
-          : '(No reply.)',
-      );
+    if (!wroteText && !closed) {
+      startBody();
+      res.write(refused ? "Sorry boss, that's not something I can help with." : '(No reply.)');
     }
     res.end();
   } catch (error) {
@@ -184,5 +260,3 @@ export function chatPlugin() {
     },
   };
 }
-
-export const STAFF_NAMES = Object.keys(STAFF);

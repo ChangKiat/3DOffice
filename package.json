@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
+    "postgres": "^4.1.1",
     "three": "^0.187.0"
   },
   "devDependencies": {

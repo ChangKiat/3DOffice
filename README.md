@@ -36,7 +36,17 @@ To turn it on:
 
 When you message someone they walk to the boss's room and stand in front of the desk, face to face with the boss. They go back to work when you switch to someone else, minimise the chat, or 45 seconds pass without a message.
 
-The staff answer in character and know what they are doing in the office at that moment. They are not connected to the tracking application yet, so they cannot look up real data. Their roles are placeholders set in `server/chat.js`.
+The staff answer in character and know what they are doing in the office at that moment.
+
+### Tracking application data
+
+The staff can read the tracking application's database (the one shared by the Dashboard and the Telegram AI Agent) to answer questions about expenses, income, budgets, bills, loans, investments, trips, tax relief, car servicing, workouts, meals, weight and steps.
+
+- The database address is read from `DATABASE_URL` in `../Dashboard/.env`, or from this project's `.env` if you set it there.
+- Access is read-only. `server/data.js` runs each query in a read-only transaction with an 8 second limit and a 200 row limit, and accepts only single `SELECT` statements on the tracking tables.
+- Account balances and credit card amounts owed are not answered, because the Dashboard computes those with its own rules.
+- Rows the staff look up are sent to the Claude API as part of the conversation.
+- Each person has a speciality, set at the top of `server/chat.js`: Azmir (finance), Rong Zhao (health and fitness), Chee Chong (bills, trips, car), Tracy (quick look-ups and summaries).
 
 The chat only works while the Vite server is running (`npm run dev` or `npm run preview`); the static files in `dist/` alone have no chat endpoint.
 
@@ -73,4 +83,5 @@ They are converted from Mixamo FBX downloads with FBX2glTF, and the character te
 - `src/helpers.js` – small mesh helpers
 - `src/chat.js` – the chat panel
 - `server/chat.js` – the chat endpoint that calls Claude
+- `server/data.js` – read-only access to the tracking database and the description of its tables
 - `vite.config.js` – loads `.env` and adds the chat endpoint to the Vite server
