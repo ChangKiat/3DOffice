@@ -7,3 +7,4 @@ dist
 .claude
 assets-src
 public/models/*.glb
+!.env.example

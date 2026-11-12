@@ -262,6 +262,29 @@ export function createPerson({
     nameTag.position.y = tagY;
   }
 
+  // What the person is doing right now, in words (used by the chat).
+  function activity() {
+    const where = queue[queue.length - 1]?.place;
+    switch (state.action) {
+      case 'work':
+        return 'working at your desk';
+      case 'eat':
+        return 'having a snack at the pantry table';
+      case 'drink':
+        return 'getting a drink in the pantry';
+      case 'rest':
+        return 'taking a short break in the rest area';
+      case 'think':
+        return 'looking at the whiteboard in the meeting room';
+      case 'meeting':
+        return 'sitting in a meeting in the meeting room';
+      default:
+        if (where?.action === 'meeting') return 'on your way to a meeting in the meeting room';
+        if (where?.action === 'work') return 'walking back to your desk';
+        return 'walking through the office on a short break';
+    }
+  }
+
   // Snapshot for debugging in the browser console (see window.office in main.js).
   const debug = () => ({
     name,
@@ -274,5 +297,5 @@ export function createPerson({
     }),
   });
 
-  return { group, update, callMeeting, endMeeting, debug };
+  return { name, group, update, callMeeting, endMeeting, activity, debug };
 }

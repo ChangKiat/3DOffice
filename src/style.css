@@ -15,9 +15,8 @@ body {
 
 .hint {
   position: fixed;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
+  left: 16px;
+  top: 16px;
   padding: 6px 14px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.45);
@@ -55,4 +54,139 @@ body {
 .meeting.active {
   background: #e25c4a;
   color: #ffffff;
+}
+
+.chat {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  width: min(340px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: rgba(20, 26, 36, 0.92);
+  color: #e8edf5;
+  font-size: 14px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 600;
+}
+
+.chat-header select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: #1b2330;
+  color: inherit;
+  font: inherit;
+}
+
+.chat-toggle {
+  padding: 2px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 240px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 8px 11px;
+  border-radius: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-bubble.me {
+  align-self: flex-end;
+  background: #ffd257;
+  color: #2a2110;
+}
+
+.chat-bubble.them {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.chat-bubble.pending {
+  opacity: 0.6;
+}
+
+.chat-bubble.note {
+  align-self: center;
+  opacity: 0.6;
+}
+
+.chat-bubble.error {
+  align-self: stretch;
+  max-width: none;
+  background: rgba(226, 92, 74, 0.25);
+  color: #ffc9c0;
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: #1b2330;
+  color: inherit;
+  font: inherit;
+}
+
+.chat-form button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #ffd257;
+  color: #2a2110;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chat.collapsed {
+  width: auto;
+}
+
+.chat.collapsed .chat-log,
+.chat.collapsed .chat-form,
+.chat.collapsed .chat-header label,
+.chat.collapsed .chat-header select {
+  display: none;
 }

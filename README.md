@@ -24,6 +24,20 @@ Then open the address Vite prints (http://localhost:5173 by default).
 - Right-drag to pan
 - **Call meeting** (top right) sends everyone to the meeting room; press it again to send them back to their desks
 
+## Chat with the staff
+
+The chat panel (bottom left) lets you message Tracy, Rong Zhao, Azmir or Chee Chong. Replies are written by Claude through the `/api/chat` endpoint in `server/chat.js`, which runs inside the Vite server so the API key never reaches the browser.
+
+To turn it on:
+
+1. Copy `.env.example` to `.env`.
+2. Put your Claude API key after `ANTHROPIC_API_KEY=`.
+3. Restart `npm run dev`.
+
+The staff answer in character and know what they are doing in the office at that moment. They are not connected to the tracking application yet, so they cannot look up real data. Their roles are placeholders set in `server/chat.js`.
+
+The chat only works while the Vite server is running (`npm run dev` or `npm run preview`); the static files in `dist/` alone have no chat endpoint.
+
 ## Build
 
 ```bash
@@ -55,3 +69,6 @@ They are converted from Mixamo FBX downloads with FBX2glTF, and the character te
 - `src/bodyBox.js` – fallback body made from boxes
 - `src/routes.js` – seats, the walkway graph and break spots
 - `src/helpers.js` – small mesh helpers
+- `src/chat.js` – the chat panel
+- `server/chat.js` – the chat endpoint that calls Claude
+- `vite.config.js` – loads `.env` and adds the chat endpoint to the Vite server

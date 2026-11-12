@@ -5,6 +5,7 @@ import { createPerson } from './person.js';
 import { createBoxBody } from './bodyBox.js';
 import { createModelBody } from './bodyModel.js';
 import { loadCharacterAssets } from './models.js';
+import { setupChat } from './chat.js';
 import {
   createSpots,
   findPath,
@@ -156,6 +157,10 @@ meetingButton.addEventListener('click', () => {
   }
   meetingButton.textContent = meetingOn ? 'End meeting' : 'Call meeting';
   meetingButton.classList.toggle('active', meetingOn);
+});
+
+setupChat({
+  getActivity: (name) => people.find((person) => person.name === name)?.activity() ?? 'at work in the office',
 });
 
 function resize() {
