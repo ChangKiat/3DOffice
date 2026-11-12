@@ -42,11 +42,17 @@ const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const between = (min, max) => min + Math.random() * (max - min);
 
 // A person who works at `desk`, takes breaks at one of the shared `spots`,
-// then walks back. See routes.js for the shape of `desk` and `spots`.
+// walks back, and can be called to a meeting at any moment.
 //
 // `body` is what the person looks like: either a character model
 // (bodyModel.js) or a box figure (bodyBox.js). This file only decides where
 // the person is and what they are doing.
+//
+// The desk, the break spots and the meeting chairs are all "places" with the
+// same shape (see routes.js): the walkway `node` they hang off, `approach`
+// points from that node, an optional `seat`, the `face` direction and the
+// `action` done there.
+//
 // `workTime` is the [min, max] seconds spent at the desk between breaks.
 export function createPerson({
   name,
@@ -54,7 +60,7 @@ export function createPerson({
   body,
   desk,
   spots,
-  findPath,
+  graph,
   firstBreak = 5,
   workTime = [10, 20],
 }) {
@@ -65,10 +71,10 @@ export function createPerson({
   group.add(nameTag);
 
   // The person works through a queue of steps:
-  //   { walk, x, z }                      walk to a point
-  //   { slide, x, z, face, sit, lift }    get into or out of a seat
-  //   { act, action, face, sit, lift, left, onDone }  stay put for `left` seconds
-
+  //   { walk, x, z, node }            walk to a walkway node
+  //   { walk, x, z, place, index }    walk to one of a place's approach points
+  //   { slide, x, z, sit, place }     get into or out of a seat
+  //   { act, left, place }            stay at a place for `left` seconds
   const queue = [];
   const state = {
     walking: false,
@@ -78,60 +84,111 @@ export function createPerson({
     action: 'work',
     slide: null, // { sit, progress } while getting into or out of a seat
   };
+  let here = desk; // the place the person is at, or was at last
+  let reserved = null; // break spot held by this person
+  let inMeeting = false;
   let yaw = desk.face;
   let targetYaw = desk.face;
   let clock = Math.random() * 10;
   let tagY = null;
 
-  const workStep = (seconds) => ({
-    act: true,
-    action: 'work',
-    face: desk.face,
-    sit: true,
-    lift: 0,
-    left: seconds,
+  const actStep = (place, seconds) => ({ act: true, place, left: seconds });
+  const approachStep = (place, index) => ({
+    walk: true,
+    x: place.approach[index][0],
+    z: place.approach[index][1],
+    place,
+    index,
   });
-  queue.push(workStep(firstBreak));
+  // Where someone stands just before sitting down at a place.
+  const standPoint = (place) =>
+    place.approach.length > 0 ? place.approach[place.approach.length - 1] : graph.nodePoint(place.node);
+
+  queue.push(actStep(desk, firstBreak));
+
+  // Steps that take the person from whatever they are doing now back to a
+  // walkway node, and the name of that node.
+  function leaveSteps() {
+    const current = queue[0];
+    const keep = [];
+    let place = here;
+    let index = place.approach.length - 1; // approach point the person will be standing at
+    let seated = Boolean(place.seat);
+
+    if (current?.walk) {
+      keep.push(current);
+      if (current.node) return { keep, start: current.node };
+      place = current.place;
+      index = current.index;
+      seated = false;
+    } else if (current?.slide) {
+      keep.push(current);
+      place = current.place;
+      index = place.approach.length - 1;
+      seated = current.sit;
+    } else if (current?.act) {
+      place = current.place;
+      index = place.approach.length - 1;
+      seated = Boolean(place.seat);
+    }
+
+    if (seated) {
+      const [x, z] = standPoint(place);
+      keep.push({ slide: true, x, z, sit: false, place });
+    }
+    for (let i = index - 1; i >= 0; i--) keep.push(approachStep(place, i));
+    return { keep, start: place.node };
+  }
+
+  // Drop whatever was planned and head for `place`, staying there for `seconds`.
+  function goTo(place, seconds) {
+    const { keep, start } = leaveSteps();
+    if (reserved && reserved !== place) {
+      reserved.busy = false;
+      reserved = null;
+    }
+
+    queue.length = 0;
+    queue.push(...keep);
+    for (const node of graph.findPath(start, place.node)) {
+      const [x, z] = graph.nodePoint(node);
+      queue.push({ walk: true, x, z, node });
+    }
+    place.approach.forEach((_, index) => queue.push(approachStep(place, index)));
+    if (place.seat) queue.push({ slide: true, x: place.seat[0], z: place.seat[1], sit: true, place });
+    queue.push(actStep(place, seconds));
+  }
+
+  const goToDesk = () => goTo(desk, between(workTime[0], workTime[1]));
 
   function planBreak() {
     const free = spots.filter((spot) => !spot.busy);
     if (free.length === 0) {
-      queue.push(workStep(between(4, 8)));
+      queue.push(actStep(desk, between(4, 8)));
       return;
     }
     const spot = pick(free);
     spot.busy = true;
+    reserved = spot;
+    goTo(spot, between(7, 11));
+  }
 
-    const route = [desk.side, ...findPath(desk.node, spot.node), ...(spot.approach ?? [])];
-    const last = route[route.length - 1];
-    const sit = Boolean(spot.seat);
-    const lift = spot.lift ?? 0;
+  function callMeeting(chair) {
+    inMeeting = true;
+    goTo(chair, Infinity);
+  }
 
-    // There
-    queue.push({ slide: true, x: desk.side[0], z: desk.side[1], face: desk.face, sit: false });
-    for (const [x, z] of route.slice(1)) queue.push({ walk: true, x, z });
-    if (sit) queue.push({ slide: true, x: spot.seat[0], z: spot.seat[1], face: spot.face, sit: true, lift });
-    queue.push({
-      act: true,
-      action: spot.action,
-      face: spot.face,
-      sit,
-      lift,
-      left: between(7, 11),
-      onDone: () => {
-        spot.busy = false;
-      },
-    });
-
-    // And back
-    if (sit) queue.push({ slide: true, x: last[0], z: last[1], face: spot.face, sit: false, lift });
-    for (const [x, z] of route.slice(0, -1).reverse()) queue.push({ walk: true, x, z });
-    queue.push({ slide: true, x: desk.seat[0], z: desk.seat[1], face: desk.face, sit: true, lift: 0 });
-    queue.push(workStep(between(workTime[0], workTime[1])));
+  function endMeeting() {
+    if (!inMeeting) return;
+    inMeeting = false;
+    goToDesk();
   }
 
   function advance(dt) {
-    if (queue.length === 0) planBreak();
+    if (queue.length === 0) {
+      if (here === desk) planBreak();
+      else goToDesk();
+    }
     const step = queue[0];
     const pos = group.position;
 
@@ -154,8 +211,8 @@ export function createPerson({
         pos.z += (dz / distance) * travel;
         targetYaw = Math.atan2(-dx, -dz);
         state.walkDistance += travel;
+        state.walking = true;
       }
-      state.walking = true;
     } else if (step.slide) {
       if (step.progress === undefined) {
         step.progress = 0;
@@ -166,20 +223,24 @@ export function createPerson({
       const k = step.progress * step.progress * (3 - 2 * step.progress);
       pos.x = step.fromX + (step.x - step.fromX) * k;
       pos.z = step.fromZ + (step.z - step.fromZ) * k;
-      targetYaw = step.face;
+      targetYaw = step.place.face;
       state.seated = step.sit;
-      state.lift = step.lift ?? 0;
+      state.lift = step.place.lift ?? 0;
       state.action = 'idle';
       state.slide = { sit: step.sit, progress: step.progress };
       if (step.progress >= 1) queue.shift();
     } else {
-      targetYaw = step.face;
-      state.seated = step.sit;
-      state.lift = step.lift ?? 0;
-      state.action = step.action;
+      here = step.place;
+      targetYaw = step.place.face;
+      state.seated = Boolean(step.place.seat);
+      state.lift = step.place.lift ?? 0;
+      state.action = step.place.action;
       step.left -= dt;
       if (step.left <= 0) {
-        step.onDone?.();
+        if (reserved === step.place) {
+          reserved.busy = false;
+          reserved = null;
+        }
         queue.shift();
       }
     }
@@ -206,8 +267,12 @@ export function createPerson({
     name,
     at: [Number(group.position.x.toFixed(2)), Number(group.position.z.toFixed(2))],
     action: state.action,
-    steps: queue.map((step) => (step.act ? step.action : `${step.walk ? 'walk' : 'slide'} ${step.x},${step.z}`)),
+    seated: state.seated,
+    steps: queue.map((step) => {
+      if (step.act) return `${step.place.action} at ${step.place.name}`;
+      return `${step.walk ? 'walk' : 'slide'} ${step.x},${step.z}`;
+    }),
   });
 
-  return { group, update, debug };
+  return { group, update, callMeeting, endMeeting, debug };
 }

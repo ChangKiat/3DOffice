@@ -26,3 +26,33 @@ body {
   pointer-events: none;
   user-select: none;
 }
+
+.meeting {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: #ffd257;
+  color: #2a2110;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.meeting:hover {
+  background: #ffdd7a;
+}
+
+.meeting:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.meeting.active {
+  background: #e25c4a;
+  color: #ffffff;
+}

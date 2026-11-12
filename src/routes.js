@@ -59,7 +59,9 @@ for (const [a, b] of EDGES) {
   neighbours[b].push({ to: a, length });
 }
 
-// Shortest walk between two nodes, as a list of points including both ends.
+export const nodePoint = (name) => NODES[name];
+
+// Shortest walk between two nodes, as a list of node names including both ends.
 export function findPath(from, to) {
   const distance = { [from]: 0 };
   const previous = {};
@@ -84,39 +86,73 @@ export function findPath(from, to) {
   }
 
   const path = [];
-  for (let name = to; name !== undefined; name = previous[name]) path.unshift(NODES[name]);
+  for (let name = to; name !== undefined; name = previous[name]) path.unshift(name);
   return path;
 }
 
-// --- Desks -------------------------------------------------------------------
-// seat: on the chair.  side: standing next to the chair.  node: nearest walkway
-// node.  face: which way the person looks while seated.
+// --- Places -------------------------------------------------------------------
+// Desks, break spots and meeting chairs all have the same shape:
+//   node      nearest walkway node
+//   approach  points to walk through from that node (may be empty)
+//   seat      where to sit, if it is somewhere to sit; otherwise the person
+//             stands at the last approach point
+//   face      which way the person looks there
+//   lift      how much higher than an office chair the seat is
+//   action    what the person does there
 
 export const WORK_DESKS = DESK_POSITIONS.map((desk, i) => ({
-  seat: [desk.x, desk.z + 0.8],
-  side: [desk.x - 0.75, desk.z + 0.85],
-  face: 0,
+  name: `desk ${i + 1}`,
+  action: 'work',
   node: `aisle${i}`,
+  approach: [[desk.x - 0.75, desk.z + 0.85]],
+  seat: [desk.x, desk.z + 0.8],
+  face: 0,
 }));
 
 export const BOSS_SEAT = {
-  seat: [BOSS_DESK.x, BOSS_DESK.z - 0.9],
-  side: [BOSS_DESK.x + 0.9, BOSS_DESK.z - 0.9],
-  face: Math.PI,
+  name: 'boss desk',
+  action: 'work',
   node: 'bossCorner',
+  approach: [[BOSS_DESK.x + 0.9, BOSS_DESK.z - 0.9]],
+  seat: [BOSS_DESK.x, BOSS_DESK.z - 0.9],
+  face: Math.PI,
 };
 
 export const RECEPTION_SEAT = {
-  seat: [RECEPTION_DESK.x, RECEPTION_DESK.z - 0.8],
-  side: [RECEPTION_DESK.x - 0.85, RECEPTION_DESK.z - 0.8],
-  face: Math.PI,
+  name: 'reception desk',
+  action: 'work',
   node: 'reception',
+  approach: [[RECEPTION_DESK.x - 0.85, RECEPTION_DESK.z - 0.8]],
+  seat: [RECEPTION_DESK.x, RECEPTION_DESK.z - 0.8],
+  face: Math.PI,
+};
+
+// The six meeting room chairs (see createMeetingRoom in office.js). People step
+// in from the left of each chair. The far row is reached by walking round the
+// left end of the table.
+const nearRow = (x) => ({
+  name: `meeting chair near ${x}`,
+  action: 'meeting',
+  node: 'meetingDoorIn',
+  approach: [[x - 0.5, -1.2], [x - 0.5, -2.0]],
+  seat: [x, -2.05],
+  face: 0,
+});
+const farRow = (x) => ({
+  name: `meeting chair far ${x}`,
+  action: 'meeting',
+  node: 'meetingDoorIn',
+  approach: [[1.6, -1.6], [1.6, -4.7], [x - 0.5, -4.7], [x - 0.5, -4.0]],
+  seat: [x, -3.95],
+  face: Math.PI,
+});
+export const MEETING_CHAIRS = {
+  near: [nearRow(3), nearRow(4), nearRow(5)],
+  far: [farRow(3), farRow(4), farRow(5)],
 };
 
 // --- Break spots ---------------------------------------------------------------
-// Shared by everyone; only one person uses a spot at a time. From `node` the
-// person walks through `approach` (if any). A spot with `seat` is somewhere to
-// sit down; otherwise the person stands at the last point.
+// Shared by everyone; only one person uses a spot at a time.
 
 export function createSpots() {
   const pantryTable = [-4, 3];
@@ -177,5 +213,5 @@ export function createSpots() {
       approach: [[1.3, -4.9], [2.6, -5.1]],
       face: 0,
     },
-  ].map((spot) => ({ ...spot, busy: false }));
+  ].map((spot) => ({ approach: [], ...spot, busy: false }));
 }

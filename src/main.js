@@ -5,7 +5,15 @@ import { createPerson } from './person.js';
 import { createBoxBody } from './bodyBox.js';
 import { createModelBody } from './bodyModel.js';
 import { loadCharacterAssets } from './models.js';
-import { createSpots, findPath, WORK_DESKS, BOSS_SEAT, RECEPTION_SEAT } from './routes.js';
+import {
+  createSpots,
+  findPath,
+  nodePoint,
+  WORK_DESKS,
+  BOSS_SEAT,
+  RECEPTION_SEAT,
+  MEETING_CHAIRS,
+} from './routes.js';
 
 const canvas = document.getElementById('scene');
 
@@ -51,11 +59,13 @@ const office = createOffice();
 scene.add(office.group);
 
 // The team. `firstBreak` staggers when each person first gets up, in seconds.
+// `meetingChair` is where the person sits when a meeting is called.
 // `model` and `tint` are used with the character models in public/models; the
 // colours after them are for the box figures shown when the models are missing.
 const team = [
   {
     name: 'Rong Zhao',
+    meetingChair: MEETING_CHAIRS.near[0],
     desk: WORK_DESKS[0],
     model: 'worker',
     tint: [0.7, 1.3, 3.2],
@@ -66,6 +76,7 @@ const team = [
   },
   {
     name: 'Azmir',
+    meetingChair: MEETING_CHAIRS.near[1],
     desk: WORK_DESKS[1],
     model: 'worker',
     tint: [3.2, 1.6, 0.6],
@@ -76,6 +87,7 @@ const team = [
   },
   {
     name: 'Chee Chong',
+    meetingChair: MEETING_CHAIRS.near[2],
     desk: WORK_DESKS[2],
     model: 'worker',
     tint: [0.8, 2.6, 1.2],
@@ -86,6 +98,7 @@ const team = [
   },
   {
     name: 'Chang Kiat',
+    meetingChair: MEETING_CHAIRS.far[1],
     boss: true,
     desk: BOSS_SEAT,
     model: 'boss',
@@ -97,6 +110,7 @@ const team = [
   },
   {
     name: 'Tracy',
+    meetingChair: MEETING_CHAIRS.far[2],
     desk: RECEPTION_SEAT,
     model: 'receptionist',
     shirt: 0xd9609a,
@@ -123,11 +137,26 @@ loadCharacterAssets()
       const body = assets
         ? createModelBody(assets, member.model, { tint: member.tint })
         : createBoxBody(member);
-      const person = createPerson({ ...member, body, spots, findPath });
+      const person = createPerson({ ...member, body, spots, graph: { findPath, nodePoint } });
+      person.meetingChair = member.meetingChair;
       scene.add(person.group);
       people.push(person);
     }
+    meetingButton.disabled = false;
   });
+
+// "Call meeting" sends everyone to the meeting room; pressing it again sends them back.
+const meetingButton = document.getElementById('meeting');
+let meetingOn = false;
+meetingButton.addEventListener('click', () => {
+  meetingOn = !meetingOn;
+  for (const person of people) {
+    if (meetingOn) person.callMeeting(person.meetingChair);
+    else person.endMeeting();
+  }
+  meetingButton.textContent = meetingOn ? 'End meeting' : 'Call meeting';
+  meetingButton.classList.toggle('active', meetingOn);
+});
 
 function resize() {
   const width = window.innerWidth;
