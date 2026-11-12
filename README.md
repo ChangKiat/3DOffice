@@ -22,6 +22,7 @@ Then open the address Vite prints (http://localhost:5173 by default).
 - Drag to rotate the camera
 - Scroll to zoom
 - Right-drag to pan
+- Click a member of staff to chat with them
 - **Call meeting** (top right) sends everyone to the meeting room; press it again to send them back to their desks
 
 ## Chat with the staff

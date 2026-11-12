@@ -123,5 +123,20 @@ export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onRepl
     else input.focus();
   });
 
+  // Switch the chat to `name` (used when a person is clicked in the office).
+  // Returns false if that person can't be chatted with or a reply is in progress.
+  function selectStaff(name) {
+    if (!STAFF.includes(name) || busy) return false;
+    if (select.value !== name) {
+      onLeave();
+      select.value = name;
+      render();
+    }
+    if (panel.classList.contains('collapsed')) toggle.click();
+    input.focus();
+    return true;
+  }
+
   render();
+  return { selectStaff, canChatWith: (name) => STAFF.includes(name) };
 }

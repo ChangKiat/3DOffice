@@ -127,7 +127,7 @@ const team = [
 
 const spots = createSpots();
 const people = [];
-if (import.meta.env.DEV) window.office = { people };
+if (import.meta.env.DEV) window.office = { people, camera };
 
 // The office shows straight away; people appear once their models have loaded.
 loadCharacterAssets()
@@ -208,13 +208,64 @@ const bubbles = createBubbles({
   },
 });
 
-setupChat({
+const chat = setupChat({
   getActivity: (name) => findPerson(name)?.activity() ?? 'at work in the office',
   onActive: startTalk,
   onLeave: endTalk,
   onReplyStart: (name) => bubbles.thinking(name),
   onReplyText: (name, text) => bubbles.say(name, text),
   onReplyEnd: (name, ok) => (ok ? bubbles.done(name) : bubbles.clear(name)),
+});
+
+// Click a member of staff to chat with them. A person is picked when the click
+// lands near the line from their feet to just above their name tag, as seen
+// on screen; the nearest person to the camera wins.
+const pickFeet = new THREE.Vector3();
+const pickHead = new THREE.Vector3();
+
+function personAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  const toScreen = (v) => {
+    v.project(camera);
+    return [(v.x * 0.5 + 0.5) * rect.width, (-v.y * 0.5 + 0.5) * rect.height, v.z];
+  };
+
+  let best = null;
+  for (const person of people) {
+    if (!chat.canChatWith(person.name)) continue;
+    const [fx, fy, depth] = toScreen(pickFeet.copy(person.group.position));
+    const [hx, hy] = toScreen(person.bubbleAnchor(pickHead));
+    if (depth < -1 || depth > 1) continue;
+
+    // Distance from the click to the feet-to-head line.
+    const dx = hx - fx;
+    const dy = hy - fy;
+    const length = Math.hypot(dx, dy);
+    const t = length === 0 ? 0 : Math.min(1, Math.max(0, ((x - fx) * dx + (y - fy) * dy) / (length * length)));
+    const distance = Math.hypot(x - (fx + dx * t), y - (fy + dy * t));
+    if (distance > Math.max(12, length * 0.3)) continue;
+    if (best === null || depth < best.depth) best = { person, depth };
+  }
+  return best?.person ?? null;
+}
+
+let pressAt = null;
+canvas.addEventListener('pointerdown', (event) => {
+  pressAt = event.button === 0 ? [event.clientX, event.clientY] : null;
+});
+canvas.addEventListener('pointerup', (event) => {
+  if (pressAt === null) return;
+  const moved = Math.hypot(event.clientX - pressAt[0], event.clientY - pressAt[1]);
+  pressAt = null;
+  if (moved > 5) return; // that was a camera drag, not a click
+  const person = personAt(event.clientX, event.clientY);
+  if (person && chat.selectStaff(person.name)) startTalk(person.name);
+});
+canvas.addEventListener('pointermove', (event) => {
+  if (event.buttons !== 0) return;
+  canvas.style.cursor = personAt(event.clientX, event.clientY) ? 'pointer' : '';
 });
 
 function resize() {
