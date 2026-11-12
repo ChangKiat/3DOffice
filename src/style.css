@@ -202,24 +202,80 @@ body {
   position: absolute;
   left: 0;
   top: 0;
-  max-width: 260px;
-  padding: 9px 12px;
+  max-width: 190px;
+  /* Leaves room below for the tail, which sits outside the box. */
+  margin-top: -10px;
+  padding: 7px 12px;
   border-radius: 14px;
   background: #ffffff;
   color: #1b2330;
   font-size: 13px;
-  line-height: 1.4;
-  white-space: pre-wrap;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
   overflow-wrap: anywhere;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
-  /* Long replies are cut off here; the chat panel has the full text. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 7;
-  overflow: hidden;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
   will-change: transform;
+  animation: speech-pop 0.16s ease-out;
 }
 
-.speech[hidden] {
+/* The tail: a small triangle pointing down at the person. */
+.speech::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: var(--tail-x, 50%);
+  margin-left: -7px;
+  border: 7px solid transparent;
+  border-top-color: #ffffff;
+  border-bottom-width: 0;
+}
+
+.speech.typing {
+  display: flex;
+  gap: 5px;
+  padding: 11px 14px;
+}
+
+.speech.typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7b8494;
+  animation: speech-dot 1s infinite ease-in-out;
+}
+
+.speech.typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.speech.typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes speech-dot {
+  0%, 60%, 100% {
+    opacity: 0.35;
+    translate: 0 0;
+  }
+  30% {
+    opacity: 1;
+    translate: 0 -3px;
+  }
+}
+
+@keyframes speech-pop {
+  from {
+    opacity: 0;
+    scale: 0.85;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.speech[hidden],
+.speech.typing[hidden] {
   display: none;
 }

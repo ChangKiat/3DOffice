@@ -36,7 +36,7 @@ To turn it on:
 
 When you message someone they walk to the boss's room and stand in front of the desk, face to face with the boss. They go back to work when you switch to someone else, minimise the chat, or 45 seconds pass without a message.
 
-The staff answer in character and know what they are doing in the office at that moment. Each reply also appears in a speech bubble above the person, which fades after a few seconds; long replies are cut short there and shown in full in the chat panel.
+The staff answer in character and know what they are doing in the office at that moment. Each reply also appears in a speech bubble above the person, which shows only the opening line and hides after a few seconds; the chat panel has the full reply.
 
 ### Tracking application data
 

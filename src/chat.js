@@ -6,9 +6,10 @@ const STAFF = ['Tracy', 'Rong Zhao', 'Azmir', 'Chee Chong'];
 // `getActivity(name)` returns what that person is doing in the office right now.
 // `onActive(name)` is called whenever the conversation with that person is in use,
 // and `onLeave()` when the boss stops talking to them.
-// `onReplyText(name, text)` gets the reply so far as it streams in ("…" while
-// waiting), and `onReplyEnd(name, ok)` is called when it finishes or fails.
-export function setupChat({ getActivity, onActive, onLeave, onReplyText, onReplyEnd }) {
+// `onReplyStart(name)` is called when a question is sent, `onReplyText(name, text)`
+// with the reply so far as it streams in, and `onReplyEnd(name, ok)` when it
+// finishes or fails.
+export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onReplyText, onReplyEnd }) {
   const panel = document.getElementById('chat');
   const toggle = document.getElementById('chat-toggle');
   const select = document.getElementById('chat-staff');
@@ -57,7 +58,7 @@ export function setupChat({ getActivity, onActive, onLeave, onReplyText, onReply
     messages.push({ role: 'user', content: text });
     addBubble('me', text);
     const bubble = addBubble('them pending', '…');
-    onReplyText(staff, '…');
+    onReplyStart(staff);
     setBusy(true);
 
     try {

@@ -212,6 +212,7 @@ setupChat({
   getActivity: (name) => findPerson(name)?.activity() ?? 'at work in the office',
   onActive: startTalk,
   onLeave: endTalk,
+  onReplyStart: (name) => bubbles.thinking(name),
   onReplyText: (name, text) => bubbles.say(name, text),
   onReplyEnd: (name, ok) => (ok ? bubbles.done(name) : bubbles.clear(name)),
 });
