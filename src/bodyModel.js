@@ -3,15 +3,18 @@ import { mat, cylinder } from './helpers.js';
 
 // A person's body built from a Mixamo character (see models.js).
 //
-// Standing idle, drinking and sitting down come from recorded clips. There is
-// no recorded walk or typing loop, so those are layered on top in code: walking
-// swings the legs and arms from the standing pose, typing wiggles the forearms
-// and hands on top of the seated typing pose.
+// Standing idle, drinking and sitting down come from recorded clips. Walking
+// uses a recorded clip too when public/models/walk.glb exists; otherwise it is
+// layered on in code by swinging the legs and arms from the standing pose.
+// Typing has no recorded loop, so the forearms and hands are wiggled in code
+// on top of the seated typing pose.
 
 const SEAT_LIFT = 0.0; // raises a seated character so it rests on an office chair
 const SEAT_BACK = 0.0; // moves a seated character back (+) or forward (-) on the seat
 const STRIDE = 3.9; // walk cycle radians per metre travelled
 const BLEND_SPEED = 8;
+const MIN_WALK_RATE = 0.6; // slowest and fastest a recorded walk may be played
+const MAX_WALK_RATE = 1.7;
 
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const tmpQuat = new THREE.Quaternion();
@@ -41,6 +44,10 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     type: mixer.clipAction(clips.type),
     stand: mixer.clipAction(standClip), // frozen standing pose under the coded walk
   };
+  if (clips.walk) actions.walk = mixer.clipAction(clips.walk);
+  // Speed the recorded walk was captured at, in metres per second (0 if it was
+  // recorded on the spot).
+  const recordedWalkSpeed = clips.walk ? Math.abs(clips.walk.travelPerSecond) * root.scale.x : 0;
   const weights = {};
   for (const [name, action] of Object.entries(actions)) {
     weights[name] = name === 'type' ? 1 : 0;
@@ -111,7 +118,7 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
   function update(dt, state, clock) {
     // Which clip should be showing?
     let current = 'idle';
-    if (state.walking) current = 'stand';
+    if (state.walking) current = actions.walk ? 'walk' : 'stand';
     else if (state.slide) current = 'sit';
     else if (state.seated) current = state.action === 'work' ? 'type' : 'sit';
     else if (state.action === 'eat' || state.action === 'drink') current = 'drink';
@@ -137,12 +144,21 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     typeTime = Math.min(clips.type.duration, typeTime + dt);
     actions.type.time = typeTime;
 
+    // Match the recorded walk to how fast the person is actually moving, so the
+    // feet don't slide.
+    if (actions.walk && recordedWalkSpeed > 0.3) {
+      // Only up to a point: a slow, short-stepped clip sped up too far looks
+      // frantic, so beyond the limit the feet slide a little instead.
+      const ratio = (state.walkSpeed ?? recordedWalkSpeed) / recordedWalkSpeed;
+      actions.walk.timeScale = Math.min(MAX_WALK_RATE, Math.max(MIN_WALK_RATE, ratio));
+    }
+
     restoreClean();
     mixer.update(dt);
     saveClean();
 
-    // Coded walk on top of the standing pose.
-    walkAmount += ((state.walking ? 1 : 0) - walkAmount) * ease;
+    // Coded walk on top of the standing pose, when there is no recorded walk.
+    walkAmount += ((state.walking && !actions.walk ? 1 : 0) - walkAmount) * ease;
     if (walkAmount > 0.01) {
       const p = state.walkDistance * STRIDE;
       const w = walkAmount;

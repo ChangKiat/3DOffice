@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const WALK_SPEED = 1.3; // units per second
+const WALK_SPEED = 1.0; // units per second
 
 function createNameTag(name, isBoss) {
   const label = isBoss ? `${name} (Boss)` : name;
@@ -81,6 +81,7 @@ export function createPerson({
   const state = {
     walking: false,
     walkDistance: 0,
+    walkSpeed: WALK_SPEED,
     seated: true,
     lift: 0,
     action: 'work',

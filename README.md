@@ -63,8 +63,9 @@ The static site is written to `dist/`.
 
 People are drawn with Mixamo characters when these files exist in `public/models/` (they are not stored in git):
 
-- Characters: `ch17.glb` (Azmir and Chee Chong), `ch01.glb` (Rong Zhao), `ch33.glb` (boss), `kachujin.glb` (receptionist)
+- Characters: `ch01.glb` (Rong Zhao), `ch28.glb` (Azmir), `ch18.glb` (Chee Chong), `ch33.glb` (boss), `kachujin.glb` (receptionist). `ch17.glb` is the spare worker model.
 - Clips: `idle.glb`, `drinking.glb`, `stand-to-sit.glb`, `sit-to-type.glb`
+- Walking: `walk.glb` (a proper looping walk) is used if present. Otherwise a loop is built from one step of `walk-stop.glb` and its mirror image. With neither file, walking is animated in code.
 
 They are converted from Mixamo FBX downloads with FBX2glTF, and the character textures are shrunk with `gltf-transform optimize --texture-size 1024 --texture-compress webp`. If the files are missing, the page falls back to simple box figures.
 
