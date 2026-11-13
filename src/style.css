@@ -279,3 +279,10 @@ body {
 .speech.typing[hidden] {
   display: none;
 }
+
+.chat-speaker {
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffd257;
+}

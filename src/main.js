@@ -169,6 +169,7 @@ meetingButton.addEventListener('click', () => {
   }
   meetingButton.textContent = meetingOn ? 'End meeting' : 'Call meeting';
   meetingButton.classList.toggle('active', meetingOn);
+  chat.setMeeting(meetingOn); // the chat now talks to the whole room, or back to one person
 });
 
 // Chatting with someone brings them to the boss's room, where they stand in
@@ -220,7 +221,9 @@ const chat = setupChat({
   getActivity: (name) => findPerson(name)?.activity() ?? 'at work in the office',
   onActive: startTalk,
   onLeave: endTalk,
-  onReplyStart: (name) => bubbles.thinking(name),
+  onReplyStart: (name) => {
+    if (name) bubbles.thinking(name); // in a meeting the speaker isn't known yet
+  },
   onReplyText: (name, text) => bubbles.say(name, text),
   onReplyEnd: (name, ok) => (ok ? bubbles.done(name) : bubbles.clear(name)),
 });

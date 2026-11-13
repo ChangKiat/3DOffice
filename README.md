@@ -39,15 +39,31 @@ When you message someone they walk to the boss's room and stand in front of the 
 
 The staff answer in character and know what they are doing in the office at that moment. Each reply also appears in a speech bubble above the person, which shows only the opening line and hides after a few seconds; the chat panel has the full reply.
 
+### One area each
+
+Each member of staff is in charge of one area and can only read that area's records:
+
+| Staff | Area |
+|---|---|
+| Azmir | Spending, income, budgets, payment accounts and cards |
+| Ken | Investments, interest earned, loans and repayments |
+| Rong Zhao | Workouts, meals, body weight and steps |
+| Chee Chong | Recurring bills and due dates, trips and their costs, car servicing |
+| Tracy | Tax relief claims and paperwork; hosts meetings |
+
+- **One to one:** a person only answers for their own area. Asked about anything else, they say it isn't theirs and name who is in charge.
+- **In a meeting:** press **Call meeting** and the chat switches to **Everyone (meeting)**. You speak to the room and whoever is in charge of the subject answers; a question that spans areas gets an answer from each person involved.
+
+The areas and their tables are set at the top of `server/chat.js`.
+
 ### Tracking application data
 
-The staff can read the tracking application's database (the one shared by the Dashboard and the Telegram AI Agent) to answer questions about expenses, income, budgets, bills, loans, investments, trips, tax relief, car servicing, workouts, meals, weight and steps.
+The staff read the tracking application's database (the one shared by the Dashboard and the Telegram AI Agent).
 
 - The database address is read from `DATABASE_URL` in `../Dashboard/.env`, or from this project's `.env` if you set it there.
-- Access is read-only. `server/data.js` runs each query in a read-only transaction with an 8 second limit and a 200 row limit, and accepts only single `SELECT` statements on the tracking tables.
+- Access is read-only. `server/data.js` runs each query in a read-only transaction with an 8 second limit and a 200 row limit, accepts only single `SELECT` statements, and refuses any table outside the asker's own area.
 - Account balances and credit card amounts owed are not answered, because the Dashboard computes those with its own rules.
 - Rows the staff look up are sent to the Claude API as part of the conversation.
-- Each person has a speciality, set at the top of `server/chat.js`: Azmir (spending, income, budgets), Ken (investments and loans), Rong Zhao (health and fitness), Chee Chong (bills, trips, car), Tracy (quick look-ups and summaries).
 
 The chat only works while the Vite server is running (`npm run dev` or `npm run preview`); the static files in `dist/` alone have no chat endpoint.
 
