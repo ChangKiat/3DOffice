@@ -1,7 +1,7 @@
 // Chat panel: the boss picks a member of staff and messages them.
 // Replies come from the /api/chat endpoint (server/chat.js) and are streamed in.
 
-const STAFF = ['Tracy', 'Rong Zhao', 'Azmir', 'Chee Chong'];
+const STAFF = ['Tracy', 'Rong Zhao', 'Azmir', 'Chee Chong', 'Ken'];
 
 // `getActivity(name)` returns what that person is doing in the office right now.
 // `onActive(name)` is called whenever the conversation with that person is in use,

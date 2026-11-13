@@ -13,9 +13,7 @@ const facing = (from, to) => Math.atan2(-(to[0] - from[0]), -(to[1] - from[1]));
 // clear of furniture and glass walls.
 
 const NODES = {
-  aisle0: [DESK_POSITIONS[0].x - 0.75, -2.4], // aisle behind the three desks
-  aisle1: [DESK_POSITIONS[1].x - 0.75, -2.4],
-  aisle2: [DESK_POSITIONS[2].x - 0.75, -2.4],
+  // One aisle node behind each desk (aisle0, aisle1, ...), added below.
   aisleEnd: [-1.7, -2.4],
   gate: [-1.7, 0.4], // gap between the planter and the meeting room glass
   meetingDoorOut: [-0.8, -1.0],
@@ -32,9 +30,6 @@ const NODES = {
 };
 
 const EDGES = [
-  ['aisle0', 'aisle1'],
-  ['aisle1', 'aisle2'],
-  ['aisle2', 'aisleEnd'],
   ['aisleEnd', 'gate'],
   ['aisleEnd', 'meetingDoorOut'],
   ['gate', 'meetingDoorOut'],
@@ -50,6 +45,12 @@ const EDGES = [
   ['bossDoorOut', 'bossDoorIn'],
   ['bossDoorIn', 'bossCorner'],
 ];
+
+// The aisle behind the desks: a node per desk, joined in a line that ends at aisleEnd.
+DESK_POSITIONS.forEach((desk, i) => {
+  NODES[`aisle${i}`] = [desk.x - 0.75, -2.4];
+  EDGES.push([`aisle${i}`, i + 1 < DESK_POSITIONS.length ? `aisle${i + 1}` : 'aisleEnd']);
+});
 
 const neighbours = {};
 for (const name of Object.keys(NODES)) neighbours[name] = [];

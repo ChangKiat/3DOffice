@@ -97,6 +97,17 @@ const team = [
     firstBreak: 9,
   },
   {
+    name: 'Ken',
+    meetingChair: MEETING_CHAIRS.far[0],
+    desk: WORK_DESKS[3],
+    model: 'worker',
+    tint: [0.7, 1.3, 3.2],
+    shirt: 0x3f7fd1,
+    hair: 0x1d1a18,
+    skin: 0xe8b796,
+    firstBreak: 18,
+  },
+  {
     name: 'Chang Kiat',
     meetingChair: MEETING_CHAIRS.far[1],
     boss: true,

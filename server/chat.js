@@ -21,7 +21,7 @@ const MAX_TOOL_ROUNDS = 8;
 const STAFF = {
   Azmir: {
     role: 'the finance analyst',
-    focus: 'spending, income, budgets, recurring bills, loans, investments and tax relief',
+    focus: 'spending, income, budgets and tax relief',
   },
   'Rong Zhao': {
     role: 'the health and fitness analyst',
@@ -30,6 +30,10 @@ const STAFF = {
   'Chee Chong': {
     role: 'the operations executive',
     focus: 'upcoming recurring bills and due dates, trips and their costs, and car servicing',
+  },
+  Ken: {
+    role: 'the investments and loans analyst',
+    focus: 'investment holdings and their buys and sells, interest earned, and loans and their repayments',
   },
   Tracy: {
     role: 'the receptionist and personal assistant',
@@ -51,7 +55,7 @@ function isoDateInKualaLumpur() {
 function personaPrompt(name, activity, hasData) {
   const { role, focus } = STAFF[name];
   const dataPart = hasData
-    ? `You can read his tracking application's records with the query_tracking_data tool. Your speciality is ${focus}, and you answer those questions with the most care, but you can look up anything he asks. When a question is far outside your area you may add which colleague knows it best (Azmir for money, Rong Zhao for health, Chee Chong for bills, trips and the car, Tracy for quick summaries), after you have answered it.`
+    ? `You can read his tracking application's records with the query_tracking_data tool. Your speciality is ${focus}, and you answer those questions with the most care, but you can look up anything he asks. When a question is far outside your area you may add which colleague knows it best (Azmir for spending, income and budgets, Ken for investments and loans, Rong Zhao for health, Chee Chong for bills, trips and the car, Tracy for quick summaries), after you have answered it.`
     : `You look after ${focus}, but the connection to the tracking application's records is not set up on this computer, so you cannot look anything up right now. If he asks for figures or records, say plainly that you can't reach the data yet instead of making anything up.`;
 
   return `You are ${name}, ${role} in a small office run by Chang Kiat. He is your boss and is the person talking to you now. When he starts a conversation you walk over to his room and talk face to face.

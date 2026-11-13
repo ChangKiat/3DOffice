@@ -37,9 +37,10 @@ export const RECEPTION_DESK = { x: 11, z: 2.5 };
 
 // Where each workstation's desk stands. The worker sits 0.8 in front (+z), facing the back wall.
 export const DESK_POSITIONS = [
-  { x: -6.2, z: -4.6 },
-  { x: -4.0, z: -4.6 },
-  { x: -1.8, z: -4.6 },
+  { x: -6.9, z: -4.6 },
+  { x: -5.1, z: -4.6 },
+  { x: -3.3, z: -4.6 },
+  { x: -1.5, z: -4.6 },
 ];
 
 function place(object, x, y, z, rotationY = 0) {
@@ -97,15 +98,15 @@ function createWorkstationArea(updaters) {
     updaters.push(monitor.update);
   }
 
-  group.add(place(createWindow(), -6.2, 2.05, BACK + 0.06));
-  group.add(place(createWindow(), -1.8, 2.05, BACK + 0.06));
+  group.add(place(createWindow(), -6.0, 2.05, BACK + 0.06));
+  group.add(place(createWindow(), -2.4, 2.05, BACK + 0.06));
 
   const clock = createClock();
-  group.add(place(clock.group, -4, 2.3, BACK + 0.07));
+  group.add(place(clock.group, -4.2, 2.3, BACK + 0.07));
   updaters.push(clock.update);
 
   group.add(place(createBookshelf(), LEFT + 0.25, 0, -2.2));
-  group.add(place(createPlant(), -7.3, 0, -5.3));
+  group.add(place(createPlant(), -7.5, 0, -0.9)); // by the bookshelf; the desks now fill the back wall
   group.add(label('Workstations', -4, -1.5));
 
   return group;

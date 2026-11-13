@@ -2,9 +2,9 @@
 
 A small 3D office scene built with [Three.js](https://threejs.org/) and Vite.
 
-The office has six areas: workstations, a meeting room, a boss room, a pantry, a rest area and reception. Five named people work in it:
+The office has six areas: workstations, a meeting room, a boss room, a pantry, a rest area and reception. Six named people work in it:
 
-- Rong Zhao, Azmir and Chee Chong at the workstations
+- Rong Zhao, Azmir, Chee Chong and Ken at the workstations
 - Chang Kiat (Boss) in the boss room
 - Tracy at reception
 
@@ -27,7 +27,7 @@ Then open the address Vite prints (http://localhost:5173 by default).
 
 ## Chat with the staff
 
-The chat panel (bottom left) lets you message Tracy, Rong Zhao, Azmir or Chee Chong. Replies are written by Claude through the `/api/chat` endpoint in `server/chat.js`, which runs inside the Vite server so the API key never reaches the browser.
+The chat panel (bottom left) lets you message Tracy, Rong Zhao, Azmir, Chee Chong or Ken. Replies are written by Claude through the `/api/chat` endpoint in `server/chat.js`, which runs inside the Vite server so the API key never reaches the browser.
 
 To turn it on:
 
@@ -47,7 +47,7 @@ The staff can read the tracking application's database (the one shared by the Da
 - Access is read-only. `server/data.js` runs each query in a read-only transaction with an 8 second limit and a 200 row limit, and accepts only single `SELECT` statements on the tracking tables.
 - Account balances and credit card amounts owed are not answered, because the Dashboard computes those with its own rules.
 - Rows the staff look up are sent to the Claude API as part of the conversation.
-- Each person has a speciality, set at the top of `server/chat.js`: Azmir (finance), Rong Zhao (health and fitness), Chee Chong (bills, trips, car), Tracy (quick look-ups and summaries).
+- Each person has a speciality, set at the top of `server/chat.js`: Azmir (spending, income, budgets), Ken (investments and loans), Rong Zhao (health and fitness), Chee Chong (bills, trips, car), Tracy (quick look-ups and summaries).
 
 The chat only works while the Vite server is running (`npm run dev` or `npm run preview`); the static files in `dist/` alone have no chat endpoint.
 
@@ -63,7 +63,7 @@ The static site is written to `dist/`.
 
 People are drawn with Mixamo characters when these files exist in `public/models/` (they are not stored in git):
 
-- Characters: `ch01.glb` (Rong Zhao), `ch28.glb` (Azmir), `ch18.glb` (Chee Chong), `ch33.glb` (boss), `kachujin.glb` (receptionist). `ch17.glb` is the spare worker model.
+- Characters: `ch01.glb` (Rong Zhao), `ch28.glb` (Azmir), `ch18.glb` (Chee Chong), `ch33.glb` (boss), `kachujin.glb` (receptionist). `ch17.glb` (Ken).
 - Clips: `idle.glb`, `drinking.glb`, `stand-to-sit.glb`, `sit-to-type.glb`
 - Walking: `walk.glb` (a proper looping walk) is used if present. Otherwise a loop is built from one step of `walk-stop.glb` and its mirror image. With neither file, walking is animated in code.
 
