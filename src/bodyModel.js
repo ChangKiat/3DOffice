@@ -11,6 +11,8 @@ import { mat, box, cylinder } from './helpers.js';
 // the head glances down at the keys now and then.
 // Eating reuses the drinking clip's reach to the mouth (it is the left hand in
 // that clip), played as quick bites with chewing in between.
+// Talking is coded too: while the person is speaking the head nods and turns,
+// the hands lift in small gestures and the body sways, standing or seated.
 
 const SEAT_LIFT = 0.0; // raises a seated character so it rests on an office chair
 const SEAT_BACK = 0.0; // moves a seated character back (+) or forward (-) on the seat
@@ -157,7 +159,8 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
   // The coded movements are added on top of what the mixer wrote. The mixer
   // skips writing a bone whose value has not changed since the last frame, so
   // the additions must be undone before each mixer update or they pile up.
-  const codedBones = [...new Set([...walkBones, ...typeBones])].map((name) => bones[name]);
+  const talkBones = ['Head', 'Spine1', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'].filter((name) => bones[name]);
+  const codedBones = [...new Set([...walkBones, ...typeBones, ...talkBones])].map((name) => bones[name]);
   const cleanQuats = codedBones.map((bone) => bone.quaternion.clone());
   let cleanHipY = bones.Hips.position.y;
   const restoreClean = () => {
@@ -186,6 +189,13 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
   // Chewing nods the head a little, from the standing pose.
   const chewAxes = sidewaysAxes('idle', ['Head']);
   for (const [name, action] of Object.entries(actions)) action.setEffectiveWeight(weights[name]);
+  // Talking gestures need the bones' axes in the standing pose and the seated one.
+  const talkAxes = {
+    stand: { side: sidewaysAxes('idle', talkBones), up: sidewaysAxes('idle', talkBones, Y_AXIS) },
+    sit: { side: sidewaysAxes('sit', talkBones), up: sidewaysAxes('sit', talkBones, Y_AXIS) },
+  };
+  for (const [name, action] of Object.entries(actions)) action.setEffectiveWeight(weights[name]);
+  let talkAmount = 0; // 0 quiet, 1 speaking
   const holdPoint = new THREE.Vector3();
   let biteClock = Math.random() * BITE_TIME;
 
@@ -293,6 +303,28 @@ export function createModelBody(assets, kind, { tint = null } = {}) {
     seatedAmount += (seatedTarget - seatedAmount) * ease;
     holder.position.y = seatedAmount * (SEAT_LIFT + (state.lift ?? 0));
     holder.position.z = seatedAmount * SEAT_BACK;
+
+    // Talking: nod and turn the head, lift the hands in small gestures, sway a little.
+    // Skipped while walking or typing, where the arms are already busy.
+    const canTalk = state.speaking && !state.walking && !state.slide && current !== 'type';
+    talkAmount += ((canTalk ? 1 : 0) - talkAmount) * Math.min(1, dt * 6);
+    if (talkAmount > 0.01) {
+      const t = clock + rhythm;
+      const k = talkAmount;
+      const axes = state.seated ? talkAxes.sit : talkAxes.stand;
+      turn(axes.side, 'Head', (Math.sin(t * 3.1) * 0.05 + Math.sin(t * 7.3) * 0.02) * k);
+      turn(axes.up, 'Head', Math.sin(t * 1.7) * 0.09 * k);
+      if (bones.Spine1) turn(axes.up, 'Spine1', Math.sin(t * 1.3) * 0.04 * k);
+
+      // Each hand rises and falls on its own beat; seated, the lift is smaller.
+      const reach = state.seated ? 0.45 : 0.8;
+      const right = Math.max(0, Math.sin(t * 1.9)) ** 2;
+      const left = Math.max(0, Math.sin(t * 1.3 + 2.4)) ** 2;
+      turn(axes.side, 'RightArm', -0.12 * right * k);
+      turn(axes.side, 'RightForeArm', -(reach * right + Math.sin(t * 6.5) * 0.05 * right) * k);
+      turn(axes.side, 'LeftArm', -0.08 * left * k);
+      turn(axes.side, 'LeftForeArm', -reach * 0.6 * left * k);
+    }
 
     // Chew between bites.
     if (weights.eat > 0.5) {

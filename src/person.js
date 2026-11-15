@@ -86,6 +86,7 @@ export function createPerson({
     lift: 0,
     action: 'work',
     slide: null, // { sit, progress } while getting into or out of a seat
+    speaking: false, // true while a reply from this person is being shown
   };
   let here = desk; // the place the person is at, or was at last
   let reserved = null; // break spot held by this person
@@ -276,6 +277,11 @@ export function createPerson({
     nameTag.position.y = tagY;
   }
 
+  // Switches the talking gestures on or off.
+  function setSpeaking(value) {
+    state.speaking = value;
+  }
+
   // World position just above the name tag, where a speech bubble points.
   function bubbleAnchor(target) {
     return target.set(group.position.x, (tagY ?? 2) + 0.28, group.position.z);
@@ -314,11 +320,12 @@ export function createPerson({
     at: [Number(group.position.x.toFixed(2)), Number(group.position.z.toFixed(2))],
     action: state.action,
     seated: state.seated,
+    speaking: state.speaking,
     steps: queue.map((step) => {
       if (step.act) return `${step.action ?? step.place.action} at ${step.place.name}`;
       return `${step.walk ? 'walk' : 'slide'} ${step.x},${step.z}`;
     }),
   });
 
-  return { name, boss, desk, group, update, holdAt, release, activity, bubbleAnchor, debug };
+  return { name, boss, desk, group, update, holdAt, release, setSpeaking, activity, bubbleAnchor, debug };
 }

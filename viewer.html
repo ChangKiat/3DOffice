@@ -63,6 +63,7 @@
         walking: stateName === 'walk',
         walkDistance: 0,
         walkSpeed: 1.0,
+        speaking: q.get('speaking') !== null,
         seated,
         lift: seat === 'sofa' ? 0.05 : 0,
         action: stateName,

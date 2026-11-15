@@ -218,6 +218,16 @@ const bubbles = createBubbles({
   },
 });
 
+// A person gestures while their reply is arriving. `delay` holds the gestures
+// a little past the end.
+const speakingTimers = new Map();
+function setSpeaking(name, value, delay = 0) {
+  clearTimeout(speakingTimers.get(name));
+  const apply = () => findPerson(name)?.setSpeaking(value);
+  if (delay > 0) speakingTimers.set(name, setTimeout(apply, delay));
+  else apply();
+}
+
 // Charts that come with a reply open in a small card on the right.
 const chartPopout = createChartPopout();
 
@@ -230,8 +240,16 @@ const chat = setupChat({
     chartPopout.hide(); // the last answer's chart no longer applies
     if (name) bubbles.thinking(name); // in a meeting the speaker isn't known yet
   },
-  onReplyText: (name, text) => bubbles.say(name, text),
-  onReplyEnd: (name, ok) => (ok ? bubbles.done(name) : bubbles.clear(name)),
+  onReplyText: (name, text) => {
+    bubbles.say(name, text);
+    setSpeaking(name, true);
+  },
+  onReplyEnd: (name, ok) => {
+    if (ok) bubbles.done(name);
+    else bubbles.clear(name);
+    // Keep gesturing for a moment after the last words arrive.
+    setSpeaking(name, false, ok ? 2500 : 0);
+  },
 });
 
 // Click a member of staff to chat with them. A person is picked when the click

@@ -215,8 +215,10 @@ export function createBoxBody({
     rightArm.elbow.rotation.y = pose.elInR;
     upperBody.rotation.x = pose.lean;
     upperBody.scale.y = 1 + Math.sin(clock * 1.6) * 0.006; // breathing
-    head.rotation.x = pose.headX;
-    head.rotation.y = pose.headY;
+    // A simple nod and turn while speaking.
+    const talking = state.speaking ? 1 : 0;
+    head.rotation.x = pose.headX + Math.sin(clock * 6) * 0.06 * talking;
+    head.rotation.y = pose.headY + Math.sin(clock * 1.7) * 0.1 * talking;
 
     food.visible = state.action === 'eat';
     mug.visible = state.action === 'drink';
