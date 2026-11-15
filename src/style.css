@@ -286,3 +286,265 @@ body {
   font-weight: 700;
   color: #ffd257;
 }
+
+.chat-chart-button {
+  display: block;
+  margin-top: 6px;
+  padding: 4px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-chart-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Chart pop-out. Colours are the dark steps of a validated palette. */
+.chart-pop {
+  --surface-1: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #34342f;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+
+  position: fixed;
+  top: 68px;
+  right: 16px;
+  width: min(340px, calc(100vw - 32px));
+  max-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 13px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.chart-pop[hidden] {
+  display: none;
+}
+
+.chart-pop.pop {
+  animation: speech-pop 0.18s ease-out;
+}
+
+.chart-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 12px 8px 14px;
+}
+
+.chart-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.chart-title {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.chart-subtitle {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chart-button {
+  padding: 3px 9px;
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chart-button:hover {
+  color: var(--text-primary);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 0 14px 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chart-legend-item,
+.chart-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.chart-pop .series-1 { --series: var(--series-1); }
+.chart-pop .series-2 { --series: var(--series-2); }
+.chart-pop .series-3 { --series: var(--series-3); }
+
+.chart-swatch,
+.chart-bar {
+  background: var(--series);
+}
+
+.chart-body {
+  padding: 2px 14px 14px;
+  overflow-y: auto;
+}
+
+.chart-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.chart-row-label {
+  width: 84px;
+  flex: none;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-row-bars {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* surface gap between a row's bars */
+}
+
+/* The bar can use the track's width minus room kept for its value label. */
+.chart-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 62px;
+}
+
+.chart-bar {
+  height: 12px;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0; /* rounded data end, square at the baseline */
+  flex: none;
+}
+
+.chart-value {
+  margin-right: -62px;
+  color: var(--text-primary);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-lines {
+  position: relative;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-grid {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+.chart-tick {
+  fill: var(--text-secondary);
+  font-size: 9.5px;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-dot {
+  fill: var(--series);
+  stroke: var(--surface-1); /* ring in the surface colour */
+  stroke-width: 2;
+}
+
+.chart-cross {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.chart-tip {
+  position: absolute;
+  top: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  background: #2a2a28;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.chart-tip[hidden],
+.chart-bars[hidden],
+.chart-lines[hidden],
+.chart-table-wrap[hidden] {
+  display: none;
+}
+
+.chart-tip-title {
+  margin-bottom: 2px;
+  color: var(--text-secondary);
+}
+
+.chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.chart-table th,
+.chart-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--grid);
+  text-align: left;
+}
+
+.chart-table th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.chart-table .number,
+.chart-table th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

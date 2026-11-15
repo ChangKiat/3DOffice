@@ -9,14 +9,42 @@ const MEETING = '__meeting__';
 // their name (see server/chat.js).
 const SPEAKER_START = '\u001e';
 const SPEAKER_END = '\u001f';
+// A chart sent with a reply sits in the text between these two markers, as JSON.
+const CHART_START = '\u001d';
+const CHART_END = '\u001c';
 
-// Splits a streamed meeting reply into [{ name, text }], one per speaker.
+// Takes the charts out of a reply. Returns the text without them and the
+// charts found so far; one that is still arriving is hidden until it is whole.
+function takeCharts(raw) {
+  const charts = [];
+  let text = '';
+  let at = 0;
+  for (;;) {
+    const start = raw.indexOf(CHART_START, at);
+    if (start === -1) {
+      text += raw.slice(at);
+      break;
+    }
+    text += raw.slice(at, start);
+    const end = raw.indexOf(CHART_END, start);
+    if (end === -1) break;
+    try {
+      charts.push(JSON.parse(raw.slice(start + 1, end)));
+    } catch {
+      // A chart that can't be read is left out.
+    }
+    at = end + 1;
+  }
+  return { text, charts };
+}
+
+// Splits a streamed meeting reply into [{ name, text, charts }], one per speaker.
 function splitSpeakers(raw) {
   const parts = [];
   for (const chunk of raw.split(SPEAKER_START).slice(1)) {
     const end = chunk.indexOf(SPEAKER_END);
     if (end === -1) continue; // the name itself has not finished arriving
-    parts.push({ name: chunk.slice(0, end), text: chunk.slice(end + 1) });
+    parts.push({ name: chunk.slice(0, end), ...takeCharts(chunk.slice(end + 1)) });
   }
   return parts;
 }
@@ -27,8 +55,9 @@ function splitSpeakers(raw) {
 // `onReplyStart(name)` is called when a question is sent (name is null in a
 // meeting, where the speaker isn't known yet), `onReplyText(name, text)` with a
 // speaker's reply so far as it streams in, and `onReplyEnd(name, ok)` when that
-// speaker finishes or the request fails.
-export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onReplyText, onReplyEnd }) {
+// speaker finishes or the request fails. `onChart(chart, name)` is called to
+// show a chart that came with a reply.
+export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onReplyText, onReplyEnd, onChart }) {
   const panel = document.getElementById('chat');
   const toggle = document.getElementById('chat-toggle');
   const select = document.getElementById('chat-staff');
@@ -62,6 +91,19 @@ export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onRepl
     bubble.setText = (value) => {
       body.textContent = value;
     };
+    // A button under the text for each chart, to open it again later.
+    const shown = [];
+    bubble.setCharts = (charts) => {
+      charts.slice(shown.length).forEach((chart) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'chat-chart-button';
+        button.textContent = `Chart: ${chart.title}`;
+        button.addEventListener('click', () => onChart(chart, speaker));
+        bubble.append(button);
+        shown.push(chart);
+      });
+    };
     log.append(bubble);
     log.scrollTop = log.scrollHeight;
     return bubble;
@@ -81,8 +123,9 @@ export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onRepl
     }
     for (const message of messages) {
       if (message.role === 'user') addBubble('me', message.content);
-      else if (message.parts) message.parts.forEach((part) => addBubble('them', part.text, part.name));
-      else addBubble('them', message.content);
+      else if (message.parts) {
+        message.parts.forEach((part) => addBubble('them', part.text, part.name).setCharts(part.charts ?? []));
+      } else addBubble('them', message.content).setCharts(message.charts ?? []);
     }
   }
 
@@ -127,14 +170,21 @@ export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onRepl
     onReplyStart(staff);
     try {
       const response = await post({ staff, activity: getActivity(staff), messages: forServer(messages) });
-      const reply = await readStream(response, (raw) => {
+      let chartsShown = 0;
+      const raw = await readStream(response, (soFar) => {
+        const { text, charts } = takeCharts(soFar);
+        charts.slice(chartsShown).forEach((chart) => onChart(chart, staff));
+        chartsShown = charts.length;
+        pending.setCharts(charts);
+        if (text.trim() === '') return; // still looking things up
         pending.classList.remove('pending');
-        pending.setText(raw);
-        onReplyText(staff, raw);
+        pending.setText(text.trim());
+        onReplyText(staff, text);
         log.scrollTop = log.scrollHeight;
       });
+      const { text: reply, charts } = takeCharts(raw);
       if (reply.trim() === '') throw new Error('No reply came back.');
-      messages.push({ role: 'assistant', content: reply });
+      messages.push({ role: 'assistant', content: reply.trim(), charts });
       onActive(staff); // keep them here while the boss reads the reply
       onReplyEnd(staff, true);
     } catch (error) {
@@ -146,6 +196,7 @@ export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onRepl
   async function askRoom(messages, pending) {
     onReplyStart(null);
     const bubbles = []; // one chat bubble per speaker, in order
+    const chartCounts = []; // charts already shown, per speaker
     let current = null;
     try {
       const activities = Object.fromEntries(STAFF.map((name) => [name, getActivity(name)]));
@@ -156,12 +207,15 @@ export function setupChat({ getActivity, onActive, onLeave, onReplyStart, onRepl
         pending.remove();
         parts.forEach((part, i) => {
           bubbles[i] ??= addBubble('them', '', part.name);
-          bubbles[i].setText(part.text || '…');
+          bubbles[i].setText(part.text.trim() || '…');
+          part.charts.slice(chartCounts[i] ?? 0).forEach((chart) => onChart(chart, part.name));
+          chartCounts[i] = part.charts.length;
+          bubbles[i].setCharts(part.charts);
         });
         const latest = parts[parts.length - 1];
         if (current !== null && current !== latest.name) onReplyEnd(current, true);
         current = latest.name;
-        if (latest.text) onReplyText(latest.name, latest.text);
+        if (latest.text.trim()) onReplyText(latest.name, latest.text);
         log.scrollTop = log.scrollHeight;
       });
 

@@ -19,6 +19,10 @@ import { dataGuide, dataConfigured, runReadOnlyQuery } from './data.js';
 //     answers (more than one person if it spans areas).
 //     Reply: streamed text in which each speaker's part starts with
 //     SPEAKER_START + name + SPEAKER_END.
+//
+// In both, a reply may carry charts: CHART_START + JSON + CHART_END inside the
+// text, sent when the person uses the show_chart tool. The browser takes them
+// out of the text and draws them in a pop-out card.
 
 const MODEL = 'claude-opus-5-5';
 const MAX_MESSAGES = 40;
@@ -28,6 +32,10 @@ const MAX_TOOL_ROUNDS = 8;
 const MAX_SPEAKERS = 3;
 const SPEAKER_START = '\u001e';
 const SPEAKER_END = '\u001f';
+const CHART_START = '\u001d';
+const CHART_END = '\u001c';
+const MAX_CHART_POINTS = { bar: 12, line: 62 };
+const MAX_CHART_SERIES = 3;
 const FALLBACK = { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };
 
 // Who the staff are, the one area each is in charge of, and the tables that
@@ -80,7 +88,9 @@ function personaPrompt(name, { activity, hasData, meeting, saidAlready }) {
   const { role, area } = STAFF[name];
 
   const access = hasData
-    ? `You are in charge of one area: ${area}. You can read that area's records with the query_tracking_data tool, and nothing else.`
+    ? `You are in charge of one area: ${area}. You can read that area's records with the query_tracking_data tool, and nothing else.
+
+When your answer rests on several comparable figures (a breakdown by category, a trend over days or months, this period against the last), also call show_chart once so a small chart pops up beside the chat. Still say the key figures in your reply, briefly, since the chart only supports them. A single number, or a question with no figures, needs no chart.`
     : `You are in charge of one area: ${area}. The connection to the tracking application's records is not set up on this computer, so you cannot look anything up right now; say so plainly if he asks for figures instead of making anything up.`;
 
   const setting = meeting
@@ -122,6 +132,72 @@ function queryToolFor(name) {
   });
 }
 
+// Checks what the model sent to show_chart. Returns { chart } or { error }.
+function cleanChart(input) {
+  const type = input?.type;
+  if (type !== 'bar' && type !== 'line') return { error: 'type must be "bar" or "line".' };
+  const title = typeof input.title === 'string' ? input.title.trim().slice(0, 80) : '';
+  if (!title) return { error: 'title is required.' };
+  const labels = Array.isArray(input.labels) ? input.labels.map((label) => String(label).slice(0, 40)) : [];
+  if (labels.length < 2) return { error: 'Give at least two labels; one figure does not need a chart.' };
+  if (labels.length > MAX_CHART_POINTS[type]) {
+    return { error: `Too many points for a ${type} chart (limit ${MAX_CHART_POINTS[type]}). Group or shorten the data.` };
+  }
+  const series = Array.isArray(input.series) ? input.series : [];
+  if (series.length < 1 || series.length > MAX_CHART_SERIES) {
+    return { error: `Give between 1 and ${MAX_CHART_SERIES} series.` };
+  }
+  const cleaned = [];
+  for (const item of series) {
+    const values = Array.isArray(item?.values) ? item.values.map(Number) : [];
+    if (values.length !== labels.length || values.some((value) => !Number.isFinite(value))) {
+      return { error: 'Each series needs one number per label.' };
+    }
+    cleaned.push({ name: String(item.name ?? '').slice(0, 30) || 'Value', values });
+  }
+  const unit = typeof input.unit === 'string' ? input.unit.trim().slice(0, 12) : '';
+  return { chart: { type, title, unit, labels, series: cleaned } };
+}
+
+// `send` puts the chart into the reply stream.
+function chartTool(send) {
+  return betaTool({
+    name: 'show_chart',
+    description:
+      'Pop up a small chart beside the chat to go with your reply. Use "bar" to compare categories or items (one bar per label, at most 12 labels, largest first reads best) and "line" for a trend over time (labels in date order, at most 62 points). Give one series for a simple breakdown, or two or three to compare, such as spent against budget. All series share one axis, so they must be in the same unit. Call it at most once per reply, after you have the figures.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['bar', 'line'] },
+        title: { type: 'string', description: 'Short title saying what is shown and for which period, e.g. "Spending by category, November".' },
+        unit: { type: 'string', description: 'Unit of the values, e.g. "RM", "kg", "steps", "kcal". Leave empty for plain counts.' },
+        labels: { type: 'array', items: { type: 'string' }, description: 'Category names, or dates in order. Keep them short, e.g. "Food", "3 Nov", "Oct".' },
+        series: {
+          type: 'array',
+          description: 'One to three series, each with one number per label.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'What this series is, e.g. "Spent" or "Budget".' },
+              values: { type: 'array', items: { type: 'number' } },
+            },
+            required: ['name', 'values'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['type', 'title', 'labels', 'series'],
+      additionalProperties: false,
+    },
+    run: async (input) => {
+      const { chart, error } = cleanChart(input);
+      if (error) return `Error: ${error}`;
+      send(chart);
+      return 'The chart is now showing beside the chat.';
+    },
+  });
+}
+
 let client = null;
 
 // One person's reply. Streams text through `write` and returns the full text.
@@ -146,7 +222,9 @@ async function speak(name, { activity, messages, meeting = false, saidAlready = 
     max_tokens: 16000,
     ...FALLBACK,
     system,
-    tools: hasData ? [queryToolFor(name)] : [],
+    tools: hasData
+      ? [queryToolFor(name), chartTool((chart) => write(`${CHART_START}${JSON.stringify(chart)}${CHART_END}`))]
+      : [],
     messages,
     stream: true,
     max_iterations: MAX_TOOL_ROUNDS,

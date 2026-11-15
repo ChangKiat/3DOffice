@@ -39,6 +39,8 @@ When you message someone they walk to the boss's room and stand in front of the 
 
 The staff answer in character and know what they are doing in the office at that moment. Each reply also appears in a speech bubble above the person, which shows only the opening line and hides after a few seconds; the chat panel has the full reply.
 
+When an answer rests on several comparable figures, the person also pops up a small chart beside the chat (bars for a breakdown, a line for a trend). The card has a table view, and a button under the reply opens the chart again.
+
 ### One area each
 
 Each member of staff is in charge of one area and can only read that area's records:
@@ -101,6 +103,7 @@ They are converted from Mixamo FBX downloads with FBX2glTF, and the character te
 - `src/helpers.js` – small mesh helpers
 - `src/chat.js` – the chat panel
 - `src/bubbles.js` – speech bubbles that follow a person's head
+- `src/chart.js` – the pop-out chart card
 - `server/chat.js` – the chat endpoint that calls Claude
 - `server/data.js` – read-only access to the tracking database and the description of its tables
 - `vite.config.js` – loads `.env` and adds the chat endpoint to the Vite server

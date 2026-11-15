@@ -7,6 +7,7 @@ import { createModelBody } from './bodyModel.js';
 import { loadCharacterAssets } from './models.js';
 import { setupChat } from './chat.js';
 import { createBubbles } from './bubbles.js';
+import { createChartPopout } from './chart.js';
 import {
   createSpots,
   findPath,
@@ -217,11 +218,16 @@ const bubbles = createBubbles({
   },
 });
 
+// Charts that come with a reply open in a small card on the right.
+const chartPopout = createChartPopout();
+
 const chat = setupChat({
+  onChart: (chart, name) => chartPopout.show(chart, name),
   getActivity: (name) => findPerson(name)?.activity() ?? 'at work in the office',
   onActive: startTalk,
   onLeave: endTalk,
   onReplyStart: (name) => {
+    chartPopout.hide(); // the last answer's chart no longer applies
     if (name) bubbles.thinking(name); // in a meeting the speaker isn't known yet
   },
   onReplyText: (name, text) => bubbles.say(name, text),
